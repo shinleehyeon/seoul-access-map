@@ -1,0 +1,55 @@
+{
+  "pharmacyCount": 5510,
+  "eveningCount": 1184,
+  "lateNightCount": 1251,
+  "walkMeters": 800,
+  "eveningCloseThreshold": 2100,
+  "lateCloseThreshold": 2200,
+  "method": "행정동 중심점 + 저녁 21시 생활인구 가중 (빈 산/비거주 격자 제외)",
+  "spopDate": "20260731",
+  "spopHour": 21,
+  "worst": {
+    "sgg": "은평구",
+    "gapScore": 31.3,
+    "uncoveredShare": 0.2755,
+    "estUncoveredPop": 111922
+  },
+  "best": {
+    "sgg": "중구",
+    "gapScore": 4.5,
+    "uncoveredShare": 0.0,
+    "estUncoveredPop": 0
+  },
+  "avgUncoveredShare": 0.1004,
+  "weekendLateCount": 1175,
+  "eveningTop3Share": 0.2475,
+  "eveningTop3": [
+    {
+      "sgg": "강남구",
+      "eveningCount": 142,
+      "share": 0.1199
+    },
+    {
+      "sgg": "서초구",
+      "eveningCount": 76,
+      "share": 0.0642
+    },
+    {
+      "sgg": "관악구",
+      "eveningCount": 75,
+      "share": 0.0633
+    }
+  ],
+  "highestLivingRatio": {
+    "sgg": "종로구",
+    "ratio": 1.75,
+    "eveningLivingPop": 245103,
+    "population": 140241,
+    "eveningCount": 37
+  },
+  "lowestWeekendLate": {
+    "sgg": "구로구",
+    "weekendLatePer10k": 0.61,
+    "weekendLateCount": 24
+  }
+}

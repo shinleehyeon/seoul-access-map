@@ -596,7 +596,13 @@ export function MapView({
               type="symbol"
               layout={{
                 "icon-image": ["get", "icon"],
-                "icon-size": 0.08,
+                "icon-size": [
+                  "match",
+                  ["get", "icon"],
+                  "pin-accident-elderly",
+                  0.13,
+                  0.1,
+                ],
                 "icon-anchor": "bottom",
                 "icon-allow-overlap": true,
                 "icon-ignore-placement": true,
@@ -809,24 +815,33 @@ export function MapView({
                 {colorMode === "bike" ? "자전거 점수" : colorMode === "child" ? "어린이 점수" : "노인 점수"}{" "}
                 <span className="text-foreground font-medium">{scoreOf(inspected)}</span>
               </div>
-              <div>
-                자전거사고 발생 {inspected.bikeAccidentCount.toLocaleString()}건 · 자전거도로{" "}
-                {inspected.bikeRoadKm}km (도로 1km당 {inspected.bikeAccidentPerRoadKm})
-              </div>
-              <div>
-                지도 핀(자전거 다발지점) {(inspected.bikeHotspotCount ?? 0).toLocaleString()}곳 ·
-                전체 다발지점 {inspected.accidentCount}곳
-              </div>
-              <div>
-                어린이보호구역 {inspected.childZoneCount}곳 · 어린이 사고다발지점{" "}
-                {inspected.childAccidentCount}건 (보호구역 100곳당{" "}
-                {inspected.childAccidentPerZone})
-              </div>
-              <div>
-                노인장애인보호구역 {inspected.elderlyZoneCount}곳 · 보행노인 사고{" "}
-                {inspected.elderlyAccidentCount}건 (보호구역 100곳당{" "}
-                {inspected.elderlyAccidentPerZone})
-              </div>
+              {colorMode === "bike" && (
+                <>
+                  <div>
+                    자전거사고 발생 {inspected.bikeAccidentCount.toLocaleString()}건(구 전체 연간
+                    통계) · 자전거도로 {inspected.bikeRoadKm}km (도로 1km당{" "}
+                    {inspected.bikeAccidentPerRoadKm})
+                  </div>
+                  <div>
+                    지도 핀(공식 지정 위험구간) {(inspected.bikeHotspotCount ?? 0).toLocaleString()}
+                    곳 · 전체 다발지점 {inspected.accidentCount}곳
+                  </div>
+                </>
+              )}
+              {colorMode === "child" && (
+                <div>
+                  어린이보호구역 {inspected.childZoneCount}곳 · 어린이 사고다발지점{" "}
+                  {inspected.childAccidentCount}건 (보호구역 100곳당{" "}
+                  {inspected.childAccidentPerZone})
+                </div>
+              )}
+              {colorMode === "elderly" && (
+                <div>
+                  노인장애인보호구역 {inspected.elderlyZoneCount}곳 · 보행노인 사고{" "}
+                  {inspected.elderlyAccidentCount}건 (보호구역 100곳당{" "}
+                  {inspected.elderlyAccidentPerZone})
+                </div>
+              )}
             </div>
           </div>
         ) : null}
@@ -868,17 +883,17 @@ export function MapView({
         </div>
         <div className="flex items-center gap-1.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/markers/pin-accident-bike.png" alt="" className="h-5 w-5 object-contain" />
+          <img src="/markers/pin-accident-bike.png" alt="" className="h-6 w-6 object-contain" />
           자전거 사고다발지점
         </div>
         <div className="flex items-center gap-1.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/markers/pin-accident-elderly.png" alt="" className="h-5 w-5 object-contain" />
+          <img src="/markers/pin-accident-elderly.png" alt="" className="h-7 w-7 object-contain" />
           보행노인 사고다발지점
         </div>
         <div className="flex items-center gap-1.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/markers/pin-accident-child.png" alt="" className="h-5 w-5 object-contain" />
+          <img src="/markers/pin-accident-child.png" alt="" className="h-6 w-6 object-contain" />
           보행/스쿨존 어린이 사고다발지점
         </div>
       </div>

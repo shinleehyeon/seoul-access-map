@@ -1,7 +1,7 @@
 import "server-only";
 import fs from "fs/promises";
 import path from "path";
-import type { DistrictStat, Pharmacy, Summary } from "./types";
+import type { CrimeCctvStat, DistrictStat, Pharmacy, Summary } from "./types";
 
 const DATA_DIR = path.join(process.cwd(), "public", "data");
 
@@ -24,4 +24,8 @@ export async function getDistrictStats(): Promise<DistrictStat[]> {
 
 export async function getSummary(): Promise<Summary | null> {
   return readJson<Summary | null>("summary.json", null);
+}
+
+export async function getCrimeCctvStats(): Promise<CrimeCctvStat[]> {
+  return readJson<CrimeCctvStat[]>("crime_cctv_stats.json", []);
 }

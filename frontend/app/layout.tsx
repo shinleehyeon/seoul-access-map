@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "저녁 약국 공백 지도",
-  description: "서울 저녁·심야 약국 도보 접근 공백 대시보드",
+  title: "서울시 교통약자·자전거 안전 공백",
+  description: "자전거전용도로·어린이·노인 보호구역과 교통사고 다발지점 비교 대시보드",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

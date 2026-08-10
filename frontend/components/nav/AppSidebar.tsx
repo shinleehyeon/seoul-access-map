@@ -28,10 +28,10 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" variant="inset" className="bg-gray-100">
       <SidebarHeader className="px-4 py-4">
         <span className="flex items-center gap-2 text-base font-semibold">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-teal-800 text-white">
-            약
+          <span className="flex size-8 items-center justify-center rounded-lg bg-rose-800 text-white">
+            안
           </span>
-          저녁 약국 공백
+          교통안전 공백
         </span>
       </SidebarHeader>
       <SidebarContent className="px-2">

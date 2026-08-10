@@ -111,15 +111,21 @@ def main() -> None:
 
     accident_n = norm(df["accidentPer10k"])
     bike_road_n = norm(df["bikeAccidentPerRoadKm"])
-    child_n = norm(df["childAccidentPerZone"])
-    elderly_n = norm(df["elderlyAccidentPerZone"])
 
     # 자전거 점수: 인프라(도로 km) 대비 사고 위험도 60% + 사고다발지점 밀도 40%
     df["bikeScore"] = (bike_road_n * 0.6 + accident_n * 0.4).mul(100).round(1)
-    # 어린이 점수: 보호구역 대비 사고 위험도만 (보호구역 100곳당 사고 건수 그대로 정규화)
-    df["childScore"] = (child_n * 100).round(1)
-    # 노인 점수: 노인장애인보호구역 대비 사고 위험도
-    df["elderlyScore"] = (elderly_n * 100).round(1)
+    # 어린이/노인 사고는 표본이 너무 적어 25개 구끼리 min-max 정규화하면 "2건 vs 0건" 차이만으로
+    # 100점이 나오는 등 왜곡이 심하다. 그래서 관측된 최댓값이 아니라 고정 기준선을 100점으로 두고
+    # 절대 비율로 스케일한다. 두 지표는 보호구역 개수 규모 자체가 달라(어린이 41~115곳,
+    # 노인 2~27곳) 기준선도 따로 잡는다 - 노인 쪽은 분모가 작아 비율이 자연히 훨씬 크게 나온다.
+    CHILD_SCALE_MAX = 10.0  # 보호구역 100곳당 사고 10건 = 매우 심각
+    ELDERLY_SCALE_MAX = 100.0  # 보호구역 100곳당 사고 100건 = 매우 심각
+    df["childScore"] = (df["childAccidentPerZone"] / CHILD_SCALE_MAX * 100).clip(upper=100).round(
+        1
+    )
+    df["elderlyScore"] = (
+        (df["elderlyAccidentPerZone"] / ELDERLY_SCALE_MAX * 100).clip(upper=100).round(1)
+    )
     # 기존 gapScore는 자전거 점수와 동일하게 유지 (하위 호환용).
     df["gapScore"] = df["bikeScore"]
 

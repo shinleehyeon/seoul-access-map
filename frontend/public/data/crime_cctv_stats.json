@@ -16,7 +16,7 @@
     "elderlyAccidentCount": 0,
     "elderlyAccidentPerZone": 0.0,
     "bikeScore": 92.5,
-    "childScore": 100.0,
+    "childScore": 48.8,
     "elderlyScore": 0.0,
     "gapScore": 92.5
   },
@@ -80,7 +80,7 @@
     "elderlyAccidentPerZone": 50.0,
     "bikeScore": 46.2,
     "childScore": 0.0,
-    "elderlyScore": 58.3,
+    "elderlyScore": 50.0,
     "gapScore": 46.2
   },
   {
@@ -164,7 +164,7 @@
     "elderlyAccidentPerZone": 25.0,
     "bikeScore": 32.3,
     "childScore": 0.0,
-    "elderlyScore": 29.2,
+    "elderlyScore": 25.0,
     "gapScore": 32.3
   },
   {
@@ -184,7 +184,7 @@
     "elderlyAccidentCount": 0,
     "elderlyAccidentPerZone": 0.0,
     "bikeScore": 31.4,
-    "childScore": 24.2,
+    "childScore": 11.8,
     "elderlyScore": 0.0,
     "gapScore": 31.4
   },
@@ -206,7 +206,7 @@
     "elderlyAccidentPerZone": 85.71,
     "bikeScore": 29.3,
     "childScore": 0.0,
-    "elderlyScore": 100.0,
+    "elderlyScore": 85.7,
     "gapScore": 29.3
   },
   {
@@ -227,7 +227,7 @@
     "elderlyAccidentPerZone": 11.11,
     "bikeScore": 25.7,
     "childScore": 0.0,
-    "elderlyScore": 13.0,
+    "elderlyScore": 11.1,
     "gapScore": 25.7
   },
   {
@@ -247,7 +247,7 @@
     "elderlyAccidentCount": 0,
     "elderlyAccidentPerZone": 0.0,
     "bikeScore": 24.9,
-    "childScore": 69.5,
+    "childScore": 33.9,
     "elderlyScore": 0.0,
     "gapScore": 24.9
   },
@@ -268,7 +268,7 @@
     "elderlyAccidentCount": 0,
     "elderlyAccidentPerZone": 0.0,
     "bikeScore": 21.0,
-    "childScore": 61.3,
+    "childScore": 29.9,
     "elderlyScore": 0.0,
     "gapScore": 21.0
   },
@@ -289,7 +289,7 @@
     "elderlyAccidentCount": 0,
     "elderlyAccidentPerZone": 0.0,
     "bikeScore": 19.8,
-    "childScore": 53.5,
+    "childScore": 26.1,
     "elderlyScore": 0.0,
     "gapScore": 19.8
   },
@@ -352,7 +352,7 @@
     "elderlyAccidentCount": 0,
     "elderlyAccidentPerZone": 0.0,
     "bikeScore": 11.4,
-    "childScore": 89.1,
+    "childScore": 43.5,
     "elderlyScore": 0.0,
     "gapScore": 11.4
   },
@@ -416,7 +416,7 @@
     "elderlyAccidentPerZone": 16.67,
     "bikeScore": 9.1,
     "childScore": 0.0,
-    "elderlyScore": 19.4,
+    "elderlyScore": 16.7,
     "gapScore": 9.1
   },
   {
@@ -457,7 +457,7 @@
     "elderlyAccidentCount": 0,
     "elderlyAccidentPerZone": 0.0,
     "bikeScore": 6.8,
-    "childScore": 33.6,
+    "childScore": 16.4,
     "elderlyScore": 0.0,
     "gapScore": 6.8
   },
@@ -478,7 +478,7 @@
     "elderlyAccidentCount": 0,
     "elderlyAccidentPerZone": 0.0,
     "bikeScore": 5.5,
-    "childScore": 32.0,
+    "childScore": 15.6,
     "elderlyScore": 0.0,
     "gapScore": 5.5
   },
@@ -499,7 +499,7 @@
     "elderlyAccidentCount": 0,
     "elderlyAccidentPerZone": 0.0,
     "bikeScore": 4.7,
-    "childScore": 22.3,
+    "childScore": 10.9,
     "elderlyScore": 0.0,
     "gapScore": 4.7
   },
@@ -520,7 +520,7 @@
     "elderlyAccidentCount": 0,
     "elderlyAccidentPerZone": 0.0,
     "bikeScore": 3.8,
-    "childScore": 53.9,
+    "childScore": 26.3,
     "elderlyScore": 0.0,
     "gapScore": 3.8
   }

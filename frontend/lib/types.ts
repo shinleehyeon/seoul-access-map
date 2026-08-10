@@ -55,6 +55,29 @@ export interface DistrictStat {
   pharmacyGapScore?: number;
 }
 
+/** 교통안전(자전거·어린이·노인) 자치구 통계 — crime_cctv_stats.json */
+export interface CrimeCctvStat {
+  sgg: string;
+  population: number;
+  accidentCount: number;
+  accidentPer10k: number;
+  bikeAccidentCount: number;
+  bikeHotspotCount: number;
+  bikeAccidentPer10k: number;
+  bikeRoadKm: number;
+  bikeAccidentPerRoadKm: number;
+  childZoneCount: number;
+  childAccidentCount: number;
+  childAccidentPerZone: number;
+  elderlyZoneCount: number;
+  elderlyAccidentCount: number;
+  elderlyAccidentPerZone: number;
+  bikeScore: number;
+  childScore: number;
+  elderlyScore: number;
+  gapScore: number;
+}
+
 export interface Summary {
   pharmacyCount: number;
   eveningCount: number;

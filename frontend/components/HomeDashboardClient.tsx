@@ -99,7 +99,7 @@ export function HomeDashboardClient({ stats }: { stats: CrimeCctvStat[] }) {
 
       <p className="text-muted-foreground pb-4 text-xs leading-relaxed">
         산출: 자전거 위험은 도로 1km당 사고·인구 대비 사고·다발지점을 종합 · 어린이·노인은 보호구역
-        대비 다발지점 비중 · 온-인프라 비율은 사고 원인이 "도로 설계"인지 "인프라 부재"인지
+        대비 다발지점 비중 · 온-인프라 비율은 사고 원인이 &ldquo;도로 설계&rdquo;인지 &ldquo;인프라 부재&rdquo;인지
         구분하는 참고 지표입니다 · 지도에서 구역·도로·핀을 함께 확인할 수 있습니다.
       </p>
     </div>

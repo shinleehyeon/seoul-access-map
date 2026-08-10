@@ -9,8 +9,6 @@ import {
   FilterSidebar,
   type FilterState,
 } from "@/components/sidebar/FilterSidebar";
-import { DetailPanel } from "@/components/panel/DetailPanel";
-import type { DistrictStat, Pharmacy } from "@/lib/types";
 
 const SEOUL_DISTRICTS = [
   "종로구", "중구", "용산구", "성동구", "광진구", "동대문구", "중랑구", "성북구",
@@ -28,22 +26,16 @@ const MapView = dynamic(() => import("@/components/map/MapView").then((m) => m.M
   ),
 });
 
-export function Dashboard({
-  pharmacies,
-  districtStats,
-}: {
-  pharmacies?: Pharmacy[];
-  districtStats?: DistrictStat[];
-  initialId?: string;
-}) {
-  const DEFAULT_FILTERS: FilterState = {
-    types: { ...DEFAULT_TYPES },
-    showChildZones: false,
-    showElderlyZones: false,
-    showBikeRoads: false,
-    sgg: "all",
-    gapFillStep: 0,
-  };
+const DEFAULT_FILTERS: FilterState = {
+  types: { ...DEFAULT_TYPES },
+  showChildZones: false,
+  showElderlyZones: false,
+  showBikeRoads: false,
+  sgg: "all",
+  gapFillStep: 0,
+};
+
+export function Dashboard() {
   const [filters, setFilters] = useState<FilterState>(() => {
     if (typeof window === "undefined") return DEFAULT_FILTERS;
     try {
@@ -58,8 +50,7 @@ export function Dashboard({
   useEffect(() => {
     window.localStorage.setItem("map-filters", JSON.stringify(filters));
   }, [filters]);
-  const [selected] = useState<Pharmacy | null>(null);
-  const [panelOpen, setPanelOpen] = useState(false);
+
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [panelSlot, setPanelSlot] = useState<HTMLElement | null>(null);
 
@@ -89,9 +80,6 @@ export function Dashboard({
     <div className="relative flex h-full min-h-0">
       <div className="relative min-w-0 flex-1">
         <MapView
-          pharmacies={pharmacies}
-          districtStats={districtStats}
-          detailOpen={panelOpen}
           gapFillStep={filters.gapFillStep}
           focusSgg={filters.sgg === "all" ? null : filters.sgg}
           visibleAccidentTypes={filters.types}
@@ -102,14 +90,6 @@ export function Dashboard({
       </div>
 
       {panelSlot && createPortal(panel, panelSlot)}
-
-      <DetailPanel
-        pharmacy={selected}
-        open={panelOpen}
-        onOpenChange={(open) => {
-          setPanelOpen(open);
-        }}
-      />
     </div>
   );
 }

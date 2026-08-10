@@ -979,10 +979,10 @@ export function MapView({
         ) : null}
         <div className="text-muted-foreground mt-1">
           {colorMode === "bike"
-            ? "색이 진할수록 자전거도로 길이 대비 자전거사고와 사고다발지점이 많은 자치구입니다."
+            ? ""
             : colorMode === "child"
-              ? "색이 진할수록 어린이보호구역 대비 어린이 사고다발지점이 많은 자치구입니다."
-              : "색이 진할수록 노인장애인보호구역 대비 보행노인 사고다발지점이 많은 자치구입니다."}
+              ? ""
+              : ""}
         </div>
         <div className="mt-1 flex items-center gap-1.5">
           <span className="inline-block size-2.5 shrink-0 rounded-sm border border-[#a16207] bg-[#eab308]/55" />

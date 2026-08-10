@@ -43,12 +43,12 @@ const TYPE_OPTIONS: { key: AccidentTypeKey; label: string; hint: string }[] = [
 ];
 
 const GAP_STEPS: { value: GapFillStep; label: string; hint: string }[] = [
-  { value: 0, label: "자동 색칠 안 함", hint: "지도에서 구를 클릭해 하나씩 색칠할 수 있어요" },
-  { value: 1, label: "1단계 · 위험 1위만", hint: "가장 위험한 구부터 + 클릭 색칠" },
-  { value: 3, label: "2단계 · 상위 3개", hint: "위험 구를 조금씩 채움 + 클릭 색칠" },
-  { value: 5, label: "3단계 · 상위 5개", hint: "위험 Top5까지 + 클릭 색칠" },
-  { value: 10, label: "4단계 · 상위 10개", hint: "절반 정도 채움 + 클릭 색칠" },
-  { value: 25, label: "5단계 · 전체 구", hint: "25개 자치구 모두" },
+  { value: 0, label: "자동 색칠 안 함", hint: "" },
+  { value: 1, label: "1단계 · 위험 1위만", hint: "" },
+  { value: 3, label: "2단계 · 상위 3개", hint: "" },
+  { value: 5, label: "3단계 · 상위 5개", hint: "" },
+  { value: 10, label: "4단계 · 상위 10개", hint: "" },
+  { value: 25, label: "5단계 · 전체 구", hint: "" },
 ];
 
 export function FilterSidebar({
@@ -99,7 +99,6 @@ export function FilterSidebar({
             </label>
           ))}
         </div>
-        <p className="text-muted-foreground mt-1.5 text-xs">여러 개 선택 가능 · 전부 해제하면 숨김</p>
       </div>
 
       <div>

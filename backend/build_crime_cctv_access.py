@@ -1,20 +1,28 @@
 """
-자전거도로 인프라 대비 교통사고 위험도 스코어 계산.
+자전거도로/보호구역 인프라 대비 교통사고 위험도 스코어 계산.
+
+세 점수 모두 같은 구조: "자치구 전체 연간 사고 발생 건수(분자) ÷ 관련 인프라 규모(분모)".
+자전거는 도로 km, 어린이/노인은 보호구역 개수가 분모다. 예전엔 어린이/노인 분자로
+교통사고다발지역표준데이터에서 유형만 필터링한 사고다발지점 개수(서울 전체 18건뿐)를
+썼는데, 표본이 너무 적어 왜곡이 심했다. 지금은 자전거처럼 자치구별 연간 실사고 통계
+(서울 열린데이터광장 "어린이/노인 교통사고 현황")를 분자로 써서 자전거와 동일한 신뢰도로
+맞췄다.
 
 입력 (data/processed/, preprocess_crime_cctv.py 결과물):
-  - accident.csv        서울 교통사고 다발지점(최신연도, 125곳) - 좌표/유형/사상자수 (지도 핀용)
-  - bike_accident.csv   자치구별 자전거 교통사고 실제 발생 건수(2025, 가해+피해 합산)
-  - bike_road.csv       자치구별 자전거도로 총 길이(km, 2025)
-
-핵심 지표는 bikeAccidentPerRoadKm = 자전거사고 건수 / 자전거도로 km.
-같은 사고 건수라도 도로가 짧은 자치구일수록 "인프라 대비 위험도"가 높다고 본다
-(도로가 적은데 사고가 몰리는 곳 = 자전거도로 확충이 시급한 곳).
+  - accident.csv          서울 교통사고 다발지점(최신연도, 125곳) - 좌표/유형/사상자수 (지도 핀용)
+  - bike_accident.csv     자치구별 자전거 교통사고 실제 발생 건수(2025, 가해+피해 합산)
+  - bike_road.csv         자치구별 자전거도로 총 길이(km, 2025)
+  - child_accident.csv    자치구별 보행 어린이 교통사고 실제 발생 건수(2025)
+  - elderly_accident.csv  자치구별 보행 노인 교통사고 실제 발생 건수(2025)
+  - child_zone.csv        자치구별 어린이보호구역 개수
+  - elderly_zone.csv      자치구별 노인장애인보호구역 개수
 
 계산:
   - accidentCount            자치구 내 교통사고 다발지점 수 (지도 핀 개수, 참고용)
-  - bikeAccidentPer10k       인구 1만명당 자전거 사고 발생 건수
-  - bikeAccidentPerRoadKm    자전거도로 1km당 자전거 사고 건수 (인프라 대비 위험도)
-  - gapScore(0~100)          인프라 대비 자전거사고 위험도 60% + 사고다발지점 밀도 40%를 합친 점수.
+  - bikeAccidentPerRoadKm    자전거도로 1km당 자전거 사고 건수
+  - childAccidentPerZone     어린이보호구역 100곳당 보행 어린이 사고 건수
+  - elderlyAccidentPerZone   노인장애인보호구역 100곳당 보행 노인 사고 건수
+  - gapScore(0~100)          기존 하위 호환용, bikeScore와 동일.
 
 기존 district_stats.json(약국 분석 유산)은 대시보드 차트들이 여전히 참조하고 있어
 건드리지 않는다. 대신 crime_cctv_stats.json으로 내보내고, 지도는 이 새 파일 기준으로
@@ -48,17 +56,22 @@ def main() -> None:
     bike_road = pd.read_csv(PROCESSED / "bike_road.csv")
     child_zone = pd.read_csv(PROCESSED / "child_zone.csv")
     elderly_zone = pd.read_csv(PROCESSED / "elderly_zone.csv")
+    child_accident = pd.read_csv(PROCESSED / "child_accident.csv")
+    elderly_accident = pd.read_csv(PROCESSED / "elderly_accident.csv")
 
     accident_by_sgg = accident.groupby("자치구").size()
     bike_by_sgg = bike_accident.set_index("자치구")["bikeAccidentCount"]
     bike_hotspot_by_sgg = accident[accident["사고유형"] == "자전거"].groupby("자치구").size()
     road_by_sgg = bike_road.set_index("자치구")["bikeRoadKm"]
-    child_accident_by_sgg = (
+    child_zone_by_sgg = child_zone.groupby("자치구").size()
+    elderly_zone_by_sgg = elderly_zone.groupby("자치구").size()
+    child_ped_by_sgg = child_accident.set_index("자치구")["childPedAccidentCount"]
+    elderly_ped_by_sgg = elderly_accident.set_index("자치구")["elderlyPedAccidentCount"]
+    # 지도 핀(사고다발지점) 개수도 참고용으로 같이 보여준다.
+    child_hotspot_by_sgg = (
         accident[accident["사고유형"].isin(["보행어린이", "스쿨존어린이"])].groupby("자치구").size()
     )
-    child_zone_by_sgg = child_zone.groupby("자치구").size()
-    elderly_accident_by_sgg = accident[accident["사고유형"] == "보행노인"].groupby("자치구").size()
-    elderly_zone_by_sgg = elderly_zone.groupby("자치구").size()
+    elderly_hotspot_by_sgg = accident[accident["사고유형"] == "보행노인"].groupby("자치구").size()
 
     rows = []
     for sgg, population in POPULATION.items():
@@ -66,22 +79,28 @@ def main() -> None:
         bike_count = int(bike_by_sgg.get(sgg, 0))
         bike_hotspot_count = int(bike_hotspot_by_sgg.get(sgg, 0))
         road_km = float(road_by_sgg.get(sgg, 0.0))
-        child_accident_count = int(child_accident_by_sgg.get(sgg, 0))
         child_zone_count = int(child_zone_by_sgg.get(sgg, 0))
-        elderly_accident_count = int(elderly_accident_by_sgg.get(sgg, 0))
         elderly_zone_count = int(elderly_zone_by_sgg.get(sgg, 0))
+        child_ped_count = int(child_ped_by_sgg.get(sgg, 0))
+        elderly_ped_count = int(elderly_ped_by_sgg.get(sgg, 0))
+        child_hotspot_count = int(child_hotspot_by_sgg.get(sgg, 0))
+        elderly_hotspot_count = int(elderly_hotspot_by_sgg.get(sgg, 0))
 
         accident_per_10k = round(accident_count / population * 10_000, 2) if population else 0.0
         bike_per_10k = round(bike_count / population * 10_000, 2) if population else 0.0
         bike_per_road_km = round(bike_count / road_km, 2) if road_km else 0.0
-        # 보호구역이 있는데도 사고가 나는 비율 (보호구역 100개당 사고건수)
+        # 보호구역 100곳당 실제 연간 보행 사고 건수 (자전거의 "도로 1km당 사고"와 동일한 철학)
         child_accident_per_zone = (
-            round(child_accident_count / child_zone_count * 100, 2) if child_zone_count else 0.0
+            round(child_ped_count / child_zone_count * 100, 2) if child_zone_count else 0.0
         )
         elderly_accident_per_zone = (
-            round(elderly_accident_count / elderly_zone_count * 100, 2)
-            if elderly_zone_count
-            else 0.0
+            round(elderly_ped_count / elderly_zone_count * 100, 2) if elderly_zone_count else 0.0
+        )
+        # 노인장애인보호구역은 자치구당 2~27곳으로 표본이 너무 작아 "보호구역당 비율"이
+        # 0~5250까지 널뛴다. 그래서 점수 계산 기준은 인구 대비 비율로 바꾼다 (보호구역
+        # 개수는 참고 정보로만 남겨둔다).
+        elderly_accident_per_10k = (
+            round(elderly_ped_count / population * 10_000, 2) if population else 0.0
         )
 
         rows.append(
@@ -96,11 +115,14 @@ def main() -> None:
                 "bikeRoadKm": road_km,
                 "bikeAccidentPerRoadKm": bike_per_road_km,
                 "childZoneCount": child_zone_count,
-                "childAccidentCount": child_accident_count,
+                "childAccidentCount": child_ped_count,
+                "childHotspotCount": child_hotspot_count,
                 "childAccidentPerZone": child_accident_per_zone,
                 "elderlyZoneCount": elderly_zone_count,
-                "elderlyAccidentCount": elderly_accident_count,
+                "elderlyAccidentCount": elderly_ped_count,
+                "elderlyHotspotCount": elderly_hotspot_count,
                 "elderlyAccidentPerZone": elderly_accident_per_zone,
+                "elderlyAccidentPer10k": elderly_accident_per_10k,
             }
         )
 
@@ -114,17 +136,18 @@ def main() -> None:
 
     # 자전거 점수: 인프라(도로 km) 대비 사고 위험도 60% + 사고다발지점 밀도 40%
     df["bikeScore"] = (bike_road_n * 0.6 + accident_n * 0.4).mul(100).round(1)
-    # 어린이/노인 사고는 표본이 너무 적어 25개 구끼리 min-max 정규화하면 "2건 vs 0건" 차이만으로
-    # 100점이 나오는 등 왜곡이 심하다. 그래서 관측된 최댓값이 아니라 고정 기준선을 100점으로 두고
-    # 절대 비율로 스케일한다. 두 지표는 보호구역 개수 규모 자체가 달라(어린이 41~115곳,
-    # 노인 2~27곳) 기준선도 따로 잡는다 - 노인 쪽은 분모가 작아 비율이 자연히 훨씬 크게 나온다.
-    CHILD_SCALE_MAX = 10.0  # 보호구역 100곳당 사고 10건 = 매우 심각
-    ELDERLY_SCALE_MAX = 100.0  # 보호구역 100곳당 사고 100건 = 매우 심각
+    # 어린이 점수: 보호구역 100곳당 실제 연간 사고 건수. 25개 구 관측 범위가 5.4~42.4라
+    # 고정 기준선(50)으로 스케일하면 왜곡 없이 자연스럽게 퍼진다.
+    CHILD_SCALE_MAX = 50.0
     df["childScore"] = (df["childAccidentPerZone"] / CHILD_SCALE_MAX * 100).clip(upper=100).round(
         1
     )
+    # 노인 점수: 보호구역 개수(2~27곳)가 너무 작아 "보호구역당 비율"이 표본 오차로 크게
+    # 흔들린다 (0~5250). 대신 인구 대비 비율(1.2~5.0)을 쓴다 - 자전거의 accidentPer10k와
+    # 같은 방식.
+    ELDERLY_SCALE_MAX = 6.0
     df["elderlyScore"] = (
-        (df["elderlyAccidentPerZone"] / ELDERLY_SCALE_MAX * 100).clip(upper=100).round(1)
+        (df["elderlyAccidentPer10k"] / ELDERLY_SCALE_MAX * 100).clip(upper=100).round(1)
     )
     # 기존 gapScore는 자전거 점수와 동일하게 유지 (하위 호환용).
     df["gapScore"] = df["bikeScore"]

@@ -9,6 +9,7 @@ import { BikeInfraScatterChart } from "@/components/charts/BikeInfraScatterChart
 import { BikePerKmChart } from "@/components/charts/BikePerKmChart";
 import { ChildZoneRiskChart } from "@/components/charts/ChildZoneRiskChart";
 import { HotspotShareChart } from "@/components/charts/HotspotShareChart";
+import { BikeOnRoadRateChart } from "@/components/charts/BikeOnRoadRateChart";
 import type { CrimeCctvStat } from "@/lib/types";
 
 export function HomeDashboardClient({ stats }: { stats: CrimeCctvStat[] }) {
@@ -83,9 +84,23 @@ export function HomeDashboardClient({ stats }: { stats: CrimeCctvStat[] }) {
         </CardContent>
       </Card>
 
+      <Card className="rounded-2xl border shadow-none">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-medium">자전거사고, 전용도로 위에서 났나?</CardTitle>
+          <CardDescription>
+            다발지점 중 전용도로 50m 이내 비율 · 높으면 도로 설계 문제, 낮으면 도로 자체가 없는
+            인프라 부재 문제
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <BikeOnRoadRateChart stats={stats} />
+        </CardContent>
+      </Card>
+
       <p className="text-muted-foreground pb-4 text-xs leading-relaxed">
         산출: 자전거 위험은 도로 1km당 사고·인구 대비 사고·다발지점을 종합 · 어린이·노인은 보호구역
-        대비 다발지점 비중 · 지도에서 구역·도로·핀을 함께 확인할 수 있습니다.
+        대비 다발지점 비중 · 온-인프라 비율은 사고 원인이 "도로 설계"인지 "인프라 부재"인지
+        구분하는 참고 지표입니다 · 지도에서 구역·도로·핀을 함께 확인할 수 있습니다.
       </p>
     </div>
   );

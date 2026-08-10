@@ -36,14 +36,28 @@ export function Dashboard({
   districtStats?: DistrictStat[];
   initialId?: string;
 }) {
-  const [filters, setFilters] = useState<FilterState>({
+  const DEFAULT_FILTERS: FilterState = {
     types: { ...DEFAULT_TYPES },
     showChildZones: false,
     showElderlyZones: false,
     showBikeRoads: false,
     sgg: "all",
     gapFillStep: 0,
+  };
+  const [filters, setFilters] = useState<FilterState>(() => {
+    if (typeof window === "undefined") return DEFAULT_FILTERS;
+    try {
+      const saved = window.localStorage.getItem("map-filters");
+      if (!saved) return DEFAULT_FILTERS;
+      return { ...DEFAULT_FILTERS, ...JSON.parse(saved) };
+    } catch {
+      return DEFAULT_FILTERS;
+    }
   });
+
+  useEffect(() => {
+    window.localStorage.setItem("map-filters", JSON.stringify(filters));
+  }, [filters]);
   const [selected] = useState<Pharmacy | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);

@@ -87,14 +87,76 @@ export interface CrimeCctvStat {
   bikeAccidentPerRoadKm: number;
   childZoneCount: number;
   childAccidentCount: number;
+  childHotspotCount: number;
   childAccidentPerZone: number;
   elderlyZoneCount: number;
   elderlyAccidentCount: number;
+  elderlyHotspotCount: number;
   elderlyAccidentPerZone: number;
+  elderlyAccidentPer10k: number;
+  bikeOnRoadRate?: number | null;
+  bikeOnRoadSample?: number;
+  childInZoneRate?: number | null;
+  childInZoneSample?: number;
+  elderlyInZoneRate?: number | null;
+  elderlyInZoneSample?: number;
   bikeScore: number;
   childScore: number;
   elderlyScore: number;
   gapScore: number;
+}
+
+function StatRow({
+  label,
+  value,
+  highlight = false,
+}: {
+  label: string;
+  value: string | number;
+  highlight?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="text-muted-foreground text-[11px]">{label}</span>
+      <span className={highlight ? "text-sm font-semibold" : "text-xs font-medium"}>{value}</span>
+    </div>
+  );
+}
+
+function OnInfraVerdict({
+  rate,
+  sample,
+  onLabel,
+  offLabel,
+  lowConfidence = false,
+}: {
+  rate: number;
+  sample?: number;
+  onLabel: string;
+  offLabel: string;
+  lowConfidence?: boolean;
+}) {
+  const onInfra = rate >= 50;
+  return (
+    <div className="border-t pt-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-muted-foreground text-[11px]">인프라 위/근처 발생 비율</span>
+        <span className="text-sm font-semibold">{rate}%</span>
+      </div>
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <span
+          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+            onInfra ? "bg-orange-100 text-orange-700" : "bg-sky-100 text-sky-700"
+          }`}
+        >
+          {onInfra ? onLabel : offLabel}
+        </span>
+        <span className="text-muted-foreground text-[10px]">
+          표본 {sample ?? 0}곳{lowConfidence ? " · 참고용" : ""}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export function MapView({
@@ -174,7 +236,15 @@ export function MapView({
   /** 지도에서 클릭해 색칠한 구 */
   const [paintedSggs, setPaintedSggs] = useState<string[]>([]);
   const [inspectedSgg, setInspectedSgg] = useState<string | null>(null);
-  const [colorMode, setColorMode] = useState<"bike" | "child" | "elderly">("bike");
+  const [colorMode, setColorMode] = useState<"bike" | "child" | "elderly">(() => {
+    if (typeof window === "undefined") return "bike";
+    const saved = window.localStorage.getItem("map-color-mode");
+    return saved === "bike" || saved === "child" || saved === "elderly" ? saved : "bike";
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem("map-color-mode", colorMode);
+  }, [colorMode]);
 
   const scoreOf = (d: CrimeCctvStat) =>
     colorMode === "bike" ? d.bikeScore : colorMode === "child" ? d.childScore : d.elderlyScore;
@@ -797,50 +867,95 @@ export function MapView({
           </button>
         </div>
         {inspected ? (
-          <div className="mt-1 rounded-lg border bg-background/80 p-2.5">
-            <div className="flex items-center gap-2">
-              <span
-                className="inline-block size-3.5 shrink-0 rounded-sm border"
-                style={{ background: gapFill(scoreOf(inspected)) }}
-              />
-              <span className="font-semibold">{inspected.sgg}</span>
-              {paintedSet.has(inspected.sgg) || autoHighlighted.has(inspected.sgg) ? (
-                <span className="text-muted-foreground">색칠됨</span>
-              ) : (
-                <span className="text-muted-foreground">해제됨</span>
-              )}
-            </div>
-            <div className="text-muted-foreground mt-1.5 space-y-0.5">
+          <div className="mt-1 overflow-hidden rounded-lg border bg-background/80">
+            <div
+              className="flex items-baseline justify-between px-3 py-2.5"
+              style={{ background: gapFill(scoreOf(inspected)), color: "#fff" }}
+            >
               <div>
-                {colorMode === "bike" ? "자전거 점수" : colorMode === "child" ? "어린이 점수" : "노인 점수"}{" "}
-                <span className="text-foreground font-medium">{scoreOf(inspected)}</span>
+                <p className="text-[11px] font-medium opacity-90">
+                  {inspected.sgg} ·{" "}
+                  {colorMode === "bike" ? "자전거" : colorMode === "child" ? "어린이" : "노인"} 위험
+                  점수
+                </p>
+                <p className="text-2xl leading-tight font-bold">{scoreOf(inspected)}</p>
               </div>
+              <span className="rounded-full bg-white/25 px-2 py-0.5 text-[10px] font-medium">
+                {paintedSet.has(inspected.sgg) || autoHighlighted.has(inspected.sgg)
+                  ? "색칠됨"
+                  : "해제됨"}
+              </span>
+            </div>
+
+            <div className="space-y-2 px-3 py-2.5">
               {colorMode === "bike" && (
                 <>
-                  <div>
-                    자전거사고 발생 {inspected.bikeAccidentCount.toLocaleString()}건(구 전체 연간
-                    통계) · 자전거도로 {inspected.bikeRoadKm}km (도로 1km당{" "}
-                    {inspected.bikeAccidentPerRoadKm})
-                  </div>
-                  <div>
-                    지도 핀(공식 지정 위험구간) {(inspected.bikeHotspotCount ?? 0).toLocaleString()}
-                    곳 · 전체 다발지점 {inspected.accidentCount}곳
-                  </div>
+                  <StatRow label="연간 자전거사고" value={`${inspected.bikeAccidentCount}건`} />
+                  <StatRow label="자전거도로" value={`${inspected.bikeRoadKm}km`} />
+                  <StatRow
+                    label="도로 1km당 사고"
+                    value={inspected.bikeAccidentPerRoadKm}
+                    highlight
+                  />
+                  <StatRow
+                    label="지도 다발지점"
+                    value={`${inspected.bikeHotspotCount ?? 0}곳 / 전체 ${inspected.accidentCount}곳`}
+                  />
+                  {inspected.bikeOnRoadRate != null && (
+                    <OnInfraVerdict
+                      rate={inspected.bikeOnRoadRate}
+                      sample={inspected.bikeOnRoadSample}
+                      onLabel="도로 설계 문제"
+                      offLabel="인프라 부재 문제"
+                    />
+                  )}
                 </>
               )}
               {colorMode === "child" && (
-                <div>
-                  어린이보호구역 {inspected.childZoneCount}곳 · 어린이 사고다발지점{" "}
-                  {inspected.childAccidentCount}건 (보호구역 100곳당{" "}
-                  {inspected.childAccidentPerZone})
-                </div>
+                <>
+                  <StatRow
+                    label="연간 보행 어린이사고"
+                    value={`${inspected.childAccidentCount}건`}
+                  />
+                  <StatRow label="어린이보호구역" value={`${inspected.childZoneCount}곳`} />
+                  <StatRow
+                    label="보호구역 100곳당 사고"
+                    value={inspected.childAccidentPerZone}
+                    highlight
+                  />
+                  {inspected.childInZoneRate != null && (
+                    <OnInfraVerdict
+                      rate={inspected.childInZoneRate}
+                      sample={inspected.childInZoneSample}
+                      onLabel="보호구역 안에서 발생"
+                      offLabel="보호구역 밖에서 발생"
+                      lowConfidence
+                    />
+                  )}
+                </>
               )}
               {colorMode === "elderly" && (
-                <div>
-                  노인장애인보호구역 {inspected.elderlyZoneCount}곳 · 보행노인 사고{" "}
-                  {inspected.elderlyAccidentCount}건 (보호구역 100곳당{" "}
-                  {inspected.elderlyAccidentPerZone})
-                </div>
+                <>
+                  <StatRow
+                    label="연간 보행 노인사고"
+                    value={`${inspected.elderlyAccidentCount}건`}
+                  />
+                  <StatRow
+                    label="인구 1만명당 사고"
+                    value={inspected.elderlyAccidentPer10k}
+                    highlight
+                  />
+                  <StatRow label="노인장애인보호구역" value={`${inspected.elderlyZoneCount}곳`} />
+                  {inspected.elderlyInZoneRate != null && (
+                    <OnInfraVerdict
+                      rate={inspected.elderlyInZoneRate}
+                      sample={inspected.elderlyInZoneSample}
+                      onLabel="보호구역 안에서 발생"
+                      offLabel="보호구역 밖에서 발생"
+                      lowConfidence
+                    />
+                  )}
+                </>
               )}
             </div>
           </div>

@@ -8,9 +8,9 @@ export function SafetyInsightCards({ stats }: { stats: CrimeCctvStat[] }) {
   const byChild = [...stats]
     .filter((d) => d.childZoneCount > 0)
     .sort((a, b) => b.childAccidentPerZone - a.childAccidentPerZone)[0];
-  const byElderly = [...stats]
-    .filter((d) => d.elderlyZoneCount > 0)
-    .sort((a, b) => b.elderlyAccidentPerZone - a.elderlyAccidentPerZone)[0];
+  const byElderly = [...stats].sort(
+    (a, b) => b.elderlyAccidentPer10k - a.elderlyAccidentPer10k
+  )[0];
 
   const cards = [
     {
@@ -30,12 +30,12 @@ export function SafetyInsightCards({ stats }: { stats: CrimeCctvStat[] }) {
         : "구역 100곳당 어린이 다발지점",
     },
     {
-      title: "노인보호구역 대비",
-      value: byElderly ? String(byElderly.elderlyAccidentPerZone) : "—",
-      unit: "/100구역",
+      title: "인구 대비 노인 보행사고",
+      value: byElderly ? String(byElderly.elderlyAccidentPer10k) : "—",
+      unit: "/만명",
       body: byElderly
-        ? `${byElderly.sgg}: 구역 ${byElderly.elderlyZoneCount} · 다발 ${byElderly.elderlyAccidentCount}`
-        : "구역 100곳당 노인 다발지점",
+        ? `${byElderly.sgg}: 연간 보행노인 사고 ${byElderly.elderlyAccidentCount}건`
+        : "인구 1만명당 보행노인 사고 (보호구역 수가 너무 적어 인구 기준으로 계산)",
     },
   ];
 

@@ -35,6 +35,12 @@ RAW_BIKE_ROAD = (
 )
 RAW_CHILD_ZONE_DIR = ROOT / "data" / "raw_child_zone"
 RAW_ELDERLY_ZONE_DIR = ROOT / "data" / "raw_elderly_zone"
+RAW_CHILD_ACCIDENT = (
+    ROOT / "data" / "raw_child_accident" / "어린이+교통사고+현황_20260810144356.xlsx"
+)
+RAW_ELDERLY_ACCIDENT = (
+    ROOT / "data" / "raw_elderly_accident" / "노인+교통사고+현황_20260810144410.xlsx"
+)
 OUT_DIR = ROOT / "data" / "processed"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -179,6 +185,88 @@ def preprocess_bike_accident() -> pd.DataFrame:
 
     print("\n[clean] 자치구별 자전거 사고 발생 건수:")
     print(df.sort_values("bikeAccidentCount", ascending=False).to_string(index=False))
+    return df
+
+
+def preprocess_child_accident() -> pd.DataFrame:
+    print("\n===== 서울시 어린이 교통사고 현황(자치구별, 2025) =====")
+
+    # 3단 헤더(연도 / 어린이·보행어린이 구분 / 발생·사망·부상)라서 header=[0, 1, 2]로 읽는다.
+    df = pd.read_excel(RAW_CHILD_ACCIDENT, header=[0, 1, 2])
+    print("[raw] shape:", df.shape)
+    df.info()
+
+    # 실제 컬럼: 자치구별(1,2) + [어린이 교통사고 / 어린이보호구역내 어린이 교통사고 /
+    # 보행 어린이 교통사고] × [발생건수/사망자수/부상자수] = 2 + 9 = 11.
+    df.columns = [
+        "자치구별1", "자치구",
+        "전체_발생", "전체_사망", "전체_부상",
+        "보호구역내_발생", "보호구역내_사망", "보호구역내_부상",
+        "보행_발생", "보행_사망", "보행_부상",
+    ]
+    df = df[["자치구", "전체_발생", "보행_발생"]]
+
+    # 첫 행(인덱스 0)은 "소계"(서울시 전체 합계)라 자치구 단위 분석에서 제외.
+    df = df[df["자치구"] != "소계"]
+
+    print("\nnull 개수:")
+    print(df.isnull().sum())
+
+    for col in ["전체_발생", "보행_발생"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    before = len(df)
+    df = df.dropna(subset=["전체_발생", "보행_발생"])
+    print(f"\n결측치 {before - len(df)}행 제거, 남은 행: {len(df)}")
+
+    df = df.rename(columns={"전체_발생": "childAccidentTotal", "보행_발생": "childPedAccidentCount"})
+    df["childAccidentTotal"] = df["childAccidentTotal"].astype(int)
+    df["childPedAccidentCount"] = df["childPedAccidentCount"].astype(int)
+    df = df.reset_index(drop=True)
+
+    print("\n[clean] 자치구별 어린이 보행 교통사고 발생 건수:")
+    print(df.sort_values("childPedAccidentCount", ascending=False).to_string(index=False))
+    return df
+
+
+def preprocess_elderly_accident() -> pd.DataFrame:
+    print("\n===== 서울시 노인 교통사고 현황(자치구별, 2025) =====")
+
+    # 3단 헤더(연도 / 노인·노인운전자·노인보행 구분 / 발생·사망·부상)라서 header=[0, 1, 2]로 읽는다.
+    df = pd.read_excel(RAW_ELDERLY_ACCIDENT, header=[0, 1, 2])
+    print("[raw] shape:", df.shape)
+    df.info()
+
+    df.columns = [
+        "자치구별1", "자치구",
+        "전체_발생", "전체_사망", "전체_부상",
+        "운전자_발생", "운전자_사망", "운전자_부상",
+        "보행_발생", "보행_사망", "보행_부상",
+    ]
+    df = df[["자치구", "전체_발생", "보행_발생"]]
+
+    # 첫 행(인덱스 0)은 "소계"(서울시 전체 합계)라 자치구 단위 분석에서 제외.
+    df = df[df["자치구"] != "소계"]
+
+    print("\nnull 개수:")
+    print(df.isnull().sum())
+
+    for col in ["전체_발생", "보행_발생"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    before = len(df)
+    df = df.dropna(subset=["전체_발생", "보행_발생"])
+    print(f"\n결측치 {before - len(df)}행 제거, 남은 행: {len(df)}")
+
+    df = df.rename(
+        columns={"전체_발생": "elderlyAccidentTotal", "보행_발생": "elderlyPedAccidentCount"}
+    )
+    df["elderlyAccidentTotal"] = df["elderlyAccidentTotal"].astype(int)
+    df["elderlyPedAccidentCount"] = df["elderlyPedAccidentCount"].astype(int)
+    df = df.reset_index(drop=True)
+
+    print("\n[clean] 자치구별 노인 보행 교통사고 발생 건수:")
+    print(df.sort_values("elderlyPedAccidentCount", ascending=False).to_string(index=False))
     return df
 
 
@@ -330,6 +418,8 @@ def main() -> None:
     bike_road = preprocess_bike_road()
     child_zone = preprocess_child_zone()
     elderly_zone = preprocess_elderly_zone()
+    child_accident = preprocess_child_accident()
+    elderly_accident = preprocess_elderly_accident()
 
     crime.to_csv(OUT_DIR / "crime.csv", index=False, encoding="utf-8-sig")
     accident.to_csv(OUT_DIR / "accident.csv", index=False, encoding="utf-8-sig")
@@ -337,14 +427,18 @@ def main() -> None:
     bike_road.to_csv(OUT_DIR / "bike_road.csv", index=False, encoding="utf-8-sig")
     child_zone.to_csv(OUT_DIR / "child_zone.csv", index=False, encoding="utf-8-sig")
     elderly_zone.to_csv(OUT_DIR / "elderly_zone.csv", index=False, encoding="utf-8-sig")
+    child_accident.to_csv(OUT_DIR / "child_accident.csv", index=False, encoding="utf-8-sig")
+    elderly_accident.to_csv(OUT_DIR / "elderly_accident.csv", index=False, encoding="utf-8-sig")
 
     print("\n===== 저장 완료 =====")
-    print(f"crime:         {len(crime)}행 -> {OUT_DIR / 'crime.csv'}")
-    print(f"accident:      {len(accident)}행 -> {OUT_DIR / 'accident.csv'}")
-    print(f"bike_accident: {len(bike_accident)}행 -> {OUT_DIR / 'bike_accident.csv'}")
-    print(f"bike_road:     {len(bike_road)}행 -> {OUT_DIR / 'bike_road.csv'}")
-    print(f"child_zone:    {len(child_zone)}행 -> {OUT_DIR / 'child_zone.csv'}")
-    print(f"elderly_zone:  {len(elderly_zone)}행 -> {OUT_DIR / 'elderly_zone.csv'}")
+    print(f"crime:            {len(crime)}행 -> {OUT_DIR / 'crime.csv'}")
+    print(f"accident:         {len(accident)}행 -> {OUT_DIR / 'accident.csv'}")
+    print(f"bike_accident:    {len(bike_accident)}행 -> {OUT_DIR / 'bike_accident.csv'}")
+    print(f"bike_road:        {len(bike_road)}행 -> {OUT_DIR / 'bike_road.csv'}")
+    print(f"child_zone:       {len(child_zone)}행 -> {OUT_DIR / 'child_zone.csv'}")
+    print(f"elderly_zone:     {len(elderly_zone)}행 -> {OUT_DIR / 'elderly_zone.csv'}")
+    print(f"child_accident:   {len(child_accident)}행 -> {OUT_DIR / 'child_accident.csv'}")
+    print(f"elderly_accident: {len(elderly_accident)}행 -> {OUT_DIR / 'elderly_accident.csv'}")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import { ChevronDown } from "lucide-react";
@@ -10,19 +10,14 @@ import {
   type FilterState,
 } from "@/components/sidebar/FilterSidebar";
 import { DetailPanel } from "@/components/panel/DetailPanel";
-import { isInDistrictBBox } from "@/lib/districtBounds";
 import type { DistrictStat, Pharmacy } from "@/lib/types";
 
-function matchesTypeFilter(p: Pharmacy, types: FilterState["types"]) {
-  const anySelected = types.evening || types.late || types.normal;
-  if (!anySelected) return false; // 전부 해제하면 약국 숨김
-  const isNormal = !p.isEvening && !p.isLateNight;
-  return (
-    (types.evening && p.isEvening) ||
-    (types.late && p.isLateNight) ||
-    (types.normal && isNormal)
-  );
-}
+const SEOUL_DISTRICTS = [
+  "종로구", "중구", "용산구", "성동구", "광진구", "동대문구", "중랑구", "성북구",
+  "강북구", "도봉구", "노원구", "은평구", "서대문구", "마포구", "양천구", "강서구",
+  "구로구", "금천구", "영등포구", "동작구", "관악구", "서초구", "강남구", "송파구",
+  "강동구",
+];
 
 const MapView = dynamic(() => import("@/components/map/MapView").then((m) => m.MapView), {
   ssr: false,
@@ -36,19 +31,20 @@ const MapView = dynamic(() => import("@/components/map/MapView").then((m) => m.M
 export function Dashboard({
   pharmacies,
   districtStats,
-  initialId,
 }: {
-  pharmacies: Pharmacy[];
-  districtStats: DistrictStat[];
+  pharmacies?: Pharmacy[];
+  districtStats?: DistrictStat[];
   initialId?: string;
 }) {
   const [filters, setFilters] = useState<FilterState>({
     types: { ...DEFAULT_TYPES },
+    showChildZones: false,
+    showElderlyZones: false,
+    showBikeRoads: false,
     sgg: "all",
-    query: "",
     gapFillStep: 0,
   });
-  const [selected, setSelected] = useState<Pharmacy | null>(null);
+  const [selected] = useState<Pharmacy | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [panelSlot, setPanelSlot] = useState<HTMLElement | null>(null);
@@ -57,39 +53,6 @@ export function Dashboard({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPanelSlot(document.getElementById("map-sidebar-panel-slot"));
   }, []);
-
-  useEffect(() => {
-    if (!initialId) return;
-    const match = pharmacies.find((p) => p.id === initialId);
-    if (match) {
-      setSelected(match);
-      setPanelOpen(true);
-    }
-  }, [initialId, pharmacies]);
-
-  const districts = useMemo(
-    () => Array.from(new Set(pharmacies.map((p) => p.sgg))).sort(),
-    [pharmacies]
-  );
-
-  const filtered = useMemo(() => {
-    let rows = pharmacies.filter((p) => matchesTypeFilter(p, filters.types));
-    if (filters.sgg !== "all") {
-      rows = rows.filter(
-        (p) => p.sgg === filters.sgg && isInDistrictBBox(p.lon, p.lat, filters.sgg)
-      );
-    }
-    if (filters.query.trim()) {
-      const q = filters.query.trim();
-      rows = rows.filter((p) => p.name.includes(q) || p.address.includes(q) || p.sgg.includes(q));
-    }
-    return rows;
-  }, [pharmacies, filters]);
-
-  function handleSelect(p: Pharmacy | null) {
-    setSelected(p);
-    setPanelOpen(p !== null);
-  }
 
   const panel = (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -103,7 +66,7 @@ export function Dashboard({
         />
       </button>
       {sidebarOpen && (
-        <FilterSidebar districts={districts} filters={filters} onChange={setFilters} />
+        <FilterSidebar districts={SEOUL_DISTRICTS} filters={filters} onChange={setFilters} />
       )}
     </div>
   );
@@ -112,15 +75,15 @@ export function Dashboard({
     <div className="relative flex h-full min-h-0">
       <div className="relative min-w-0 flex-1">
         <MapView
-          pharmacies={filtered}
+          pharmacies={pharmacies}
           districtStats={districtStats}
-          selected={selected}
-          onSelect={handleSelect}
           detailOpen={panelOpen}
           gapFillStep={filters.gapFillStep}
           focusSgg={filters.sgg === "all" ? null : filters.sgg}
-          visibleTypes={filters.types}
-          dataKey={`${filters.types.evening}-${filters.types.late}-${filters.types.normal}|${filters.sgg}|${filters.query}|${filtered.length}`}
+          visibleAccidentTypes={filters.types}
+          showChildZones={filters.showChildZones}
+          showElderlyZones={filters.showElderlyZones}
+          showBikeRoads={filters.showBikeRoads}
         />
       </div>
 
@@ -131,7 +94,6 @@ export function Dashboard({
         open={panelOpen}
         onOpenChange={(open) => {
           setPanelOpen(open);
-          if (!open) setSelected(null);
         }}
       />
     </div>

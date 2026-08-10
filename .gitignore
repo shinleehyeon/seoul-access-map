@@ -8,6 +8,7 @@ node_modules/
 .next/
 data/**/*.csv
 data/**/*.json
+data/**/*.geojson
 data/**/*.zip
 data/**/*.shp
 data/**/*.shx
@@ -16,5 +17,6 @@ data/**/*.prj
 data/**/*.sbn
 data/**/*.sbx
 data/**/*.xml
+data/**/*.graphml
 !data/.gitkeep
 .DS_Store

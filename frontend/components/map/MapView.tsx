@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import MapGL, {
   Layer,
   NavigationControl,
@@ -11,13 +11,41 @@ import MapGL, {
 } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { setWorkerUrl } from "maplibre-gl";
-import type { GeoJSONSource, Map as MapLibreMap, StyleSpecification } from "maplibre-gl";
+import type { Map as MapLibreMap, StyleSpecification } from "maplibre-gl";
 import { ExternalLink } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { gapFill, pharmacyPinBucket } from "@/lib/color";
-import type { DistrictStat, Pharmacy } from "@/lib/types";
+import { gapFill } from "@/lib/color";
+import type { Pharmacy } from "@/lib/types";
+
+const ACCIDENT_ICON_BY_TYPE: Record<string, string> = {
+  자전거: "pin-accident-bike",
+  보행노인: "pin-accident-elderly",
+  보행어린이: "pin-accident-child",
+  스쿨존어린이: "pin-accident-child",
+};
+const ACCIDENT_FILTER_KEY_BY_TYPE: Record<string, "bike" | "elderly" | "child"> = {
+  자전거: "bike",
+  보행노인: "elderly",
+  보행어린이: "child",
+  스쿨존어린이: "child",
+};
+const ACCIDENT_ICONS = ["pin-accident-bike", "pin-accident-elderly", "pin-accident-child"] as const;
+
+function roadviewUrl(lat: number, lon: number) {
+  return `https://map.kakao.com/link/roadview/${lat},${lon}`;
+}
+
+async function ensureAccidentIcons(map: MapLibreMap) {
+  await Promise.all(
+    ACCIDENT_ICONS.map(async (name) => {
+      if (map.hasImage(name)) return;
+      const result = await map.loadImage(`/markers/${name}.png`);
+      if (!map.hasImage(name)) {
+        map.addImage(name, result.data, { pixelRatio: 2 });
+      }
+    })
+  );
+}
 
 if (typeof window !== "undefined") {
   setWorkerUrl("/maplibre-gl-worker.mjs");
@@ -44,127 +72,197 @@ const MAP_STYLE: StyleSpecification = {
 };
 
 const SEOUL_CENTER = { longitude: 126.978, latitude: 37.5665, zoom: 11 };
-const INTERACTIVE = ["pharm-clusters", "pharm-points", "districts-fill"];
-const PIN_IDS = ["evening", "late", "normal"] as const;
-const SUGGEST_PIN = "pin-suggest";
+const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
-function roadviewUrl(lat: number, lon: number) {
-  return `https://map.kakao.com/link/roadview/${lat},${lon}`;
-}
-
-async function ensurePinImages(map: MapLibreMap) {
-  const jobs = [
-    ...PIN_IDS.map((id) => ({ name: `pin-pharm-${id}`, url: `/markers/pin-pharm-${id}.png` })),
-    { name: SUGGEST_PIN, url: `/markers/${SUGGEST_PIN}.png` },
-  ];
-  await Promise.all(
-    jobs.map(async ({ name, url }) => {
-      if (map.hasImage(name)) return;
-      const result = await map.loadImage(url);
-      if (!map.hasImage(name)) {
-        map.addImage(name, result.data, { pixelRatio: 2 });
-      }
-    })
-  );
-}
-
-function fmtClose(hhmm: number | null) {
-  if (hhmm == null) return "—";
-  return `${String(Math.floor(hhmm / 100)).padStart(2, "0")}:${String(hhmm % 100).padStart(2, "0")}`;
+export interface CrimeCctvStat {
+  sgg: string;
+  population: number;
+  accidentCount: number;
+  accidentPer10k: number;
+  bikeAccidentCount: number;
+  /** 지도에 찍히는 자전거 사고다발지점 핀 수 (발생 건수와 별개) */
+  bikeHotspotCount: number;
+  bikeAccidentPer10k: number;
+  bikeRoadKm: number;
+  bikeAccidentPerRoadKm: number;
+  childZoneCount: number;
+  childAccidentCount: number;
+  childAccidentPerZone: number;
+  elderlyZoneCount: number;
+  elderlyAccidentCount: number;
+  elderlyAccidentPerZone: number;
+  bikeScore: number;
+  childScore: number;
+  elderlyScore: number;
+  gapScore: number;
 }
 
 export function MapView({
-  pharmacies,
-  districtStats,
   selected,
-  onSelect,
   detailOpen = false,
   gapFillStep = 0,
   focusSgg = null,
-  dataKey = "all",
-  visibleTypes = { evening: true, late: true, normal: true },
+  visibleAccidentTypes = { bike: true, elderly: true, child: true },
+  showChildZones = false,
+  showElderlyZones = false,
+  showBikeRoads = false,
 }: {
-  pharmacies: Pharmacy[];
-  districtStats: DistrictStat[];
-  selected: Pharmacy | null;
-  onSelect: (p: Pharmacy | null) => void;
+  pharmacies?: Pharmacy[];
+  /** 약국 분석 시절 유산 - 더 이상 지도에서 안 쓰지만 호출부 호환을 위해 받아둔다 */
+  districtStats?: unknown;
+  visibleTypes?: unknown;
+  selected?: Pharmacy | null;
+  onSelect?: (p: Pharmacy | null) => void;
   detailOpen?: boolean;
-  /** 공백 점수 높은 구부터 N개만 색칠 (0=없음) */
+  /** 위험도 점수 높은 구부터 N개만 색칠 (0=없음) */
   gapFillStep?: number;
-  /** 필터된 자치구 — 지도 포커스 + 추천 위치 범위 */
+  /** 필터된 자치구 — 지도 포커스 */
   focusSgg?: string | null;
-  /** 저녁·심야 필터가 꺼졌을 때 핀 색상이 남는 것을 막기 위한 활성 타입 */
-  visibleTypes?: { evening: boolean; late: boolean; normal: boolean };
-  /** 필터 변경 시 클러스터 소스 강제 리마운트 */
+  /** 사고유형별 지도 핀 표시 여부 */
+  visibleAccidentTypes?: { bike: boolean; elderly: boolean; child: boolean };
+  /** 어린이보호구역 표시 여부 */
+  showChildZones?: boolean;
+  /** 노인장애인보호구역 표시 여부 */
+  showElderlyZones?: boolean;
+  /** 자전거전용도로 표시 여부 */
+  showBikeRoads?: boolean;
   dataKey?: string;
 }) {
   const mapRef = useRef<MapRef | null>(null);
-  const didInitialFlyRef = useRef(false);
-  const hoverClearRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const popupHoverRef = useRef(false);
-  const hoveredIdRef = useRef<string | null>(null);
   const [districtGeo, setDistrictGeo] = useState<GeoJSON.FeatureCollection | null>(null);
-  const [coverage, setCoverage] = useState<GeoJSON.FeatureCollection | null>(null);
-  const [showUncovered, setShowUncovered] = useState(false);
-  const [iconsReady, setIconsReady] = useState(false);
-  const [hovered, setHovered] = useState<Pharmacy | null>(null);
+  const [crimeStats, setCrimeStats] = useState<CrimeCctvStat[]>([]);
+  const [accidentGeo, setAccidentGeo] = useState<GeoJSON.FeatureCollection | null>(null);
+  const [childZoneGeo, setChildZoneGeo] = useState<GeoJSON.FeatureCollection | null>(null);
+  const [elderlyZoneGeo, setElderlyZoneGeo] = useState<GeoJSON.FeatureCollection | null>(null);
+  const [bikeRoadGeo, setBikeRoadGeo] = useState<GeoJSON.FeatureCollection | null>(null);
+  const [hoveredAccident, setHoveredAccident] = useState<{
+    name: string;
+    accidentType: string;
+    accidentCount: number;
+    casualties: number;
+    lon: number;
+    lat: number;
+  } | null>(null);
+  const [hoveredChildZone, setHoveredChildZone] = useState<{
+    key: string;
+    name: string;
+    facilityType: string;
+    cctv: boolean;
+    cctvCount: number;
+    lon: number;
+    lat: number;
+  } | null>(null);
+  const [hoveredElderlyZone, setHoveredElderlyZone] = useState<{
+    key: string;
+    name: string;
+    facilityType: string;
+    cctv: boolean;
+    cctvCount: number;
+    lon: number;
+    lat: number;
+  } | null>(null);
+  const [hoveredBikeRoad, setHoveredBikeRoad] = useState<{
+    key: string;
+    name: string;
+    lon: number;
+    lat: number;
+  } | null>(null);
+  /** 팝업 위에 마우스가 있으면 호버 해제하지 않음 (로드뷰 클릭용) */
+  const popupLockRef = useRef(false);
   const [cursor, setCursor] = useState("grab");
+  const [iconsReady, setIconsReady] = useState(false);
   /** 지도에서 클릭해 색칠한 구 */
   const [paintedSggs, setPaintedSggs] = useState<string[]>([]);
   const [inspectedSgg, setInspectedSgg] = useState<string | null>(null);
+  const [colorMode, setColorMode] = useState<"bike" | "child" | "elderly">("bike");
 
-  const byId = useMemo(() => {
-    const m = new Map<string, Pharmacy>();
-    for (const p of pharmacies) m.set(p.id, p);
-    return m;
-  }, [pharmacies]);
+  const scoreOf = (d: CrimeCctvStat) =>
+    colorMode === "bike" ? d.bikeScore : colorMode === "child" ? d.childScore : d.elderlyScore;
 
   const bySgg = useMemo(() => {
-    const m = new Map<string, DistrictStat>();
-    for (const d of districtStats) m.set(d.sgg, d);
+    const m = new Map<string, CrimeCctvStat>();
+    for (const d of crimeStats) m.set(d.sgg, d);
     return m;
-  }, [districtStats]);
+  }, [crimeStats]);
 
-  const pointsGeo = useMemo((): GeoJSON.FeatureCollection => {
-    return {
-      type: "FeatureCollection",
-      features: pharmacies.map((p) => ({
-        type: "Feature",
+  const accidentGeoFiltered = useMemo(() => {
+    if (!accidentGeo) return null;
+    const features = accidentGeo.features
+      .filter((f) => !focusSgg || f.properties?.sgg === focusSgg)
+      .filter((f) => {
+        const key = ACCIDENT_FILTER_KEY_BY_TYPE[f.properties?.accidentType as string] ?? "bike";
+        return visibleAccidentTypes[key];
+      })
+      .map((f) => ({
+        ...f,
         properties: {
-          id: p.id,
-          pin: `pin-pharm-${pharmacyPinBucket(p, visibleTypes)}`,
-          name: p.name,
+          ...f.properties,
+          icon: ACCIDENT_ICON_BY_TYPE[f.properties?.accidentType as string] ?? "pin-accident-bike",
         },
-        geometry: { type: "Point", coordinates: [p.lon, p.lat] },
-      })),
+      }));
+    return { ...accidentGeo, features };
+  }, [accidentGeo, focusSgg, visibleAccidentTypes]);
+
+  const interactiveLayerIds = useMemo(() => {
+    const ids = ["districts-fill", "accident-points"];
+    if (showChildZones) ids.push("child-zone-fill");
+    if (showElderlyZones) ids.push("elderly-zone-fill");
+    if (showBikeRoads) ids.push("bike-road-line");
+    return ids;
+  }, [showChildZones, showElderlyZones, showBikeRoads]);
+
+  const childZoneGeoFiltered = useMemo(() => {
+    if (!childZoneGeo || !showChildZones) return EMPTY_FC;
+    if (!focusSgg) return childZoneGeo;
+    return {
+      ...childZoneGeo,
+      features: childZoneGeo.features.filter((f) => f.properties?.sgg === focusSgg),
     };
-  }, [pharmacies, visibleTypes]);
+  }, [childZoneGeo, focusSgg, showChildZones]);
+
+  const elderlyZoneGeoFiltered = useMemo(() => {
+    if (!elderlyZoneGeo || !showElderlyZones) return EMPTY_FC;
+    if (!focusSgg) return elderlyZoneGeo;
+    return {
+      ...elderlyZoneGeo,
+      features: elderlyZoneGeo.features.filter((f) => f.properties?.sgg === focusSgg),
+    };
+  }, [elderlyZoneGeo, focusSgg, showElderlyZones]);
+
+  const bikeRoadGeoFiltered = useMemo(() => {
+    if (!bikeRoadGeo || !showBikeRoads) return EMPTY_FC;
+    if (!focusSgg) return bikeRoadGeo;
+    return {
+      ...bikeRoadGeo,
+      features: bikeRoadGeo.features.filter((f) => f.properties?.sgg === focusSgg),
+    };
+  }, [bikeRoadGeo, focusSgg, showBikeRoads]);
 
   const autoHighlighted = useMemo(() => {
     if (gapFillStep <= 0) return new Set<string>();
     return new Set(
-      [...districtStats]
-        .sort((a, b) => b.gapScore - a.gapScore)
+      [...crimeStats]
+        .sort((a, b) => scoreOf(b) - scoreOf(a))
         .slice(0, gapFillStep)
         .map((d) => d.sgg)
     );
-  }, [districtStats, gapFillStep]);
+  }, [crimeStats, gapFillStep, colorMode]);
 
   const paintedSet = useMemo(() => new Set(paintedSggs), [paintedSggs]);
 
   const fillColorExpr = useMemo(() => {
     const expr: unknown[] = ["match", ["get", "name"]];
-    for (const d of districtStats) {
+    for (const d of crimeStats) {
       const on = paintedSet.has(d.sgg) || autoHighlighted.has(d.sgg);
-      expr.push(d.sgg, on ? gapFill(d.gapScore) : "#e5e7eb");
+      expr.push(d.sgg, on ? gapFill(scoreOf(d)) : "#e5e7eb");
     }
     expr.push("#e5e7eb");
     return expr;
-  }, [districtStats, paintedSet, autoHighlighted]);
+  }, [crimeStats, paintedSet, autoHighlighted, colorMode]);
 
   const anyPainted = paintedSggs.length > 0 || gapFillStep > 0;
 
-  const inspected = inspectedSgg ? bySgg.get(inspectedSgg) ?? null : null;
+  const inspected = inspectedSgg ? (bySgg.get(inspectedSgg) ?? null) : null;
 
   useEffect(() => {
     fetch("/data/seoul_districts.json")
@@ -174,24 +272,39 @@ export function MapView({
   }, []);
 
   useEffect(() => {
-    fetch("/data/coverage_samples.json")
+    fetch("/data/crime_cctv_stats.json")
       .then((r) => r.json())
-      .then(
-        (data: {
-          points: { lon: number; lat: number; uncovered: boolean; nearestM: number; sgg?: string }[];
-        }) => {
-          const features = (data.points ?? [])
-            .filter((p) => p.uncovered && (!focusSgg || p.sgg === focusSgg))
-            .map((p) => ({
-              type: "Feature" as const,
-              properties: { nearestM: p.nearestM },
-              geometry: { type: "Point" as const, coordinates: [p.lon, p.lat] },
-            }));
-          setCoverage({ type: "FeatureCollection", features });
-        }
-      )
-      .catch(() => setCoverage(null));
-  }, [focusSgg]);
+      .then(setCrimeStats)
+      .catch(() => setCrimeStats([]));
+  }, []);
+
+  useEffect(() => {
+    fetch("/data/accident_points.json")
+      .then((r) => r.json())
+      .then(setAccidentGeo)
+      .catch(() => setAccidentGeo(null));
+  }, []);
+
+  useEffect(() => {
+    fetch("/data/child_zone_points.json")
+      .then((r) => r.json())
+      .then(setChildZoneGeo)
+      .catch(() => setChildZoneGeo(null));
+  }, []);
+
+  useEffect(() => {
+    fetch("/data/elderly_zone_points.json")
+      .then((r) => r.json())
+      .then(setElderlyZoneGeo)
+      .catch(() => setElderlyZoneGeo(null));
+  }, []);
+
+  useEffect(() => {
+    fetch("/data/bike_road_polygons.json")
+      .then((r) => r.json())
+      .then(setBikeRoadGeo)
+      .catch(() => setBikeRoadGeo(null));
+  }, []);
 
   useEffect(() => {
     if (!focusSgg || !districtGeo) return;
@@ -229,115 +342,114 @@ export function MapView({
   }, [focusSgg, districtGeo]);
 
   useEffect(() => {
-    // 딥링크(초기 진입 시 선택된 약국)만 지도를 이동시키고, 이후 "자세히 보기" 클릭 등
-    // 사용자가 이미 보고 있는 화면(줌 포함)은 그대로 유지한다.
-    if (selected && !didInitialFlyRef.current) {
-      didInitialFlyRef.current = true;
+    if (selected) {
       mapRef.current?.flyTo({ center: [selected.lon, selected.lat], zoom: 14, duration: 800 });
     }
   }, [selected]);
 
-  useEffect(() => {
-    if (!detailOpen) return;
-    if (hoverClearRef.current) clearTimeout(hoverClearRef.current);
-    popupHoverRef.current = false;
-    hoveredIdRef.current = null;
-    setHovered(null);
-  }, [detailOpen]);
+  const clearZoneHovers = () => {
+    if (popupLockRef.current) return;
+    setHoveredChildZone(null);
+    setHoveredElderlyZone(null);
+    setHoveredBikeRoad(null);
+  };
 
-  const cancelHoverClear = useCallback(() => {
-    if (hoverClearRef.current) {
-      clearTimeout(hoverClearRef.current);
-      hoverClearRef.current = null;
+  const onMouseMove = (e: MapLayerMouseEvent) => {
+    if (detailOpen) return;
+    const accidentFeat = e.features?.find((x) => x.layer.id === "accident-points");
+    if (accidentFeat) {
+      setCursor("pointer");
+      clearZoneHovers();
+      popupLockRef.current = false;
+      const [lon, lat] = (accidentFeat.geometry as GeoJSON.Point).coordinates;
+      setHoveredAccident({
+        name: (accidentFeat.properties?.name as string) ?? "",
+        accidentType: (accidentFeat.properties?.accidentType as string) ?? "",
+        accidentCount: (accidentFeat.properties?.accidentCount as number) ?? 0,
+        casualties: (accidentFeat.properties?.casualties as number) ?? 0,
+        lon,
+        lat,
+      });
+      return;
     }
-  }, []);
-
-  const clearHover = useCallback(() => {
-    cancelHoverClear();
-    popupHoverRef.current = false;
-    hoveredIdRef.current = null;
-    setHovered(null);
-  }, [cancelHoverClear]);
-
-  useEffect(() => {
-    // 필터 바뀌면 이전 호버/팝업·잔상 클러스터 제거
-    clearHover();
-  }, [dataKey, clearHover]);
-
-  /** 핀→팝업 이동 시 빈 공간을 건널 수 있게 유지 */
-  const scheduleHoverClear = useCallback(() => {
-    cancelHoverClear();
-    hoverClearRef.current = setTimeout(() => {
-      if (!popupHoverRef.current) clearHover();
-    }, 220);
-  }, [cancelHoverClear, clearHover]);
-
-  const pick = useCallback(
-    (e: MapLayerMouseEvent) => {
-      const f = e.features?.find((x) => x.layer.id === "pharm-points");
-      const id = f?.properties?.id as string | undefined;
-      return id ? (byId.get(id) ?? null) : null;
-    },
-    [byId]
-  );
-
-  const onMouseMove = useCallback(
-    (e: MapLayerMouseEvent) => {
-      if (detailOpen) return;
-      if (e.features?.some((x) => x.layer.id === "pharm-clusters")) {
-        setCursor("pointer");
-        if (!popupHoverRef.current) clearHover();
-        return;
-      }
-      const rec = pick(e);
-      const onDistrict = e.features?.some((x) => x.layer.id === "districts-fill");
-      setCursor(rec || onDistrict ? "pointer" : "grab");
-      if (rec) {
-        cancelHoverClear();
-        if (hoveredIdRef.current !== rec.id) {
-          hoveredIdRef.current = rec.id;
-          setHovered(rec);
-        }
-      } else if (!popupHoverRef.current) {
-        scheduleHoverClear();
-      }
-    },
-    [cancelHoverClear, clearHover, detailOpen, pick, scheduleHoverClear]
-  );
-
-  const onClick = useCallback(
-    async (e: MapLayerMouseEvent) => {
-      if (detailOpen) return;
-      const cluster = e.features?.find((x) => x.layer.id === "pharm-clusters");
-      if (cluster && cluster.properties?.cluster_id != null) {
-        const map = mapRef.current?.getMap();
-        const source = map?.getSource("pharm-points") as GeoJSONSource | undefined;
-        if (map && source) {
-          const zoom = await source.getClusterExpansionZoom(cluster.properties.cluster_id as number);
-          const [lon, lat] = (cluster.geometry as GeoJSON.Point).coordinates;
-          map.easeTo({ center: [lon, lat], zoom });
-        }
-        return;
-      }
-      const rec = pick(e);
-      if (rec) {
-        onSelect(rec);
-        return;
-      }
-      const district = e.features?.find((x) => x.layer.id === "districts-fill");
-      const name = district?.properties?.name as string | undefined;
-      if (!name) return;
-      const wasPainted = paintedSggs.includes(name);
-      setInspectedSgg(wasPainted ? null : name);
-      setPaintedSggs((prev) =>
-        wasPainted ? prev.filter((s) => s !== name) : [...prev, name]
+    setHoveredAccident(null);
+    const childZoneFeat = e.features?.find((x) => x.layer.id === "child-zone-fill");
+    if (childZoneFeat) {
+      setCursor("pointer");
+      setHoveredElderlyZone(null);
+      setHoveredBikeRoad(null);
+      const name = (childZoneFeat.properties?.name as string) ?? "";
+      const key = `${childZoneFeat.properties?.sgg ?? ""}:${name}`;
+      setHoveredChildZone((prev) =>
+        prev?.key === key
+          ? prev
+          : {
+              key,
+              name,
+              facilityType: (childZoneFeat.properties?.facilityType as string) ?? "",
+              cctv: Number(childZoneFeat.properties?.cctv) === 1,
+              cctvCount: Number(childZoneFeat.properties?.cctvCount) || 0,
+              lon: e.lngLat.lng,
+              lat: e.lngLat.lat,
+            }
       );
-    },
-    [detailOpen, onSelect, paintedSggs, pick]
-  );
+      return;
+    }
+    const elderlyZoneFeat = e.features?.find((x) => x.layer.id === "elderly-zone-fill");
+    if (elderlyZoneFeat) {
+      setCursor("pointer");
+      setHoveredChildZone(null);
+      setHoveredBikeRoad(null);
+      const name = (elderlyZoneFeat.properties?.name as string) ?? "";
+      const key = `${elderlyZoneFeat.properties?.sgg ?? ""}:${name}`;
+      setHoveredElderlyZone((prev) =>
+        prev?.key === key
+          ? prev
+          : {
+              key,
+              name,
+              facilityType: (elderlyZoneFeat.properties?.facilityType as string) ?? "",
+              cctv: Number(elderlyZoneFeat.properties?.cctv) === 1,
+              cctvCount: Number(elderlyZoneFeat.properties?.cctvCount) || 0,
+              lon: e.lngLat.lng,
+              lat: e.lngLat.lat,
+            }
+      );
+      return;
+    }
+    const bikeRoadFeat = e.features?.find((x) => x.layer.id === "bike-road-line");
+    if (bikeRoadFeat) {
+      setCursor("pointer");
+      setHoveredChildZone(null);
+      setHoveredElderlyZone(null);
+      const name = (bikeRoadFeat.properties?.name as string) ?? "자전거전용도로";
+      const key = `${bikeRoadFeat.properties?.sgg ?? ""}:${name}`;
+      setHoveredBikeRoad((prev) =>
+        prev?.key === key
+          ? prev
+          : {
+              key,
+              name,
+              lon: e.lngLat.lng,
+              lat: e.lngLat.lat,
+            }
+      );
+      return;
+    }
+    clearZoneHovers();
+    const onDistrict = e.features?.some((x) => x.layer.id === "districts-fill");
+    setCursor(onDistrict ? "pointer" : "grab");
+  };
 
-  const popup = detailOpen ? null : hovered;
-  const selectedId = selected?.id ?? "";
+  const onClick = (e: MapLayerMouseEvent) => {
+    if (detailOpen) return;
+    const district = e.features?.find((x) => x.layer.id === "districts-fill");
+    const name = district?.properties?.name as string | undefined;
+    if (!name) return;
+    const wasPainted = paintedSggs.includes(name);
+    setInspectedSgg(wasPainted ? null : name);
+    setPaintedSggs((prev) => (wasPainted ? prev.filter((s) => s !== name) : [...prev, name]));
+  };
 
   return (
     <>
@@ -347,12 +459,12 @@ export function MapView({
         mapStyle={MAP_STYLE}
         style={{ width: "100%", height: "100%" }}
         cursor={detailOpen ? "default" : cursor}
-        interactiveLayerIds={detailOpen ? [] : INTERACTIVE}
+        interactiveLayerIds={detailOpen ? [] : interactiveLayerIds}
         onLoad={async () => {
           const map = mapRef.current?.getMap();
           if (!map) return;
           try {
-            await ensurePinImages(map);
+            await ensureAccidentIcons(map);
             setIconsReady(true);
           } catch {
             setIconsReady(false);
@@ -364,7 +476,12 @@ export function MapView({
             ? undefined
             : () => {
                 setCursor("grab");
-                if (!popupHoverRef.current) clearHover();
+                setHoveredAccident(null);
+                if (!popupLockRef.current) {
+                  setHoveredChildZone(null);
+                  setHoveredElderlyZone(null);
+                  setHoveredBikeRoad(null);
+                }
               }
         }
         onClick={detailOpen ? undefined : onClick}
@@ -392,148 +509,293 @@ export function MapView({
           </Source>
         )}
 
-        {coverage && showUncovered && iconsReady && (
-          <Source id="uncovered" type="geojson" data={coverage}>
+        {bikeRoadGeo && (
+          <Source id="bike-roads" type="geojson" data={bikeRoadGeoFiltered} tolerance={0}>
             <Layer
-              id="suggest-pins"
-              type="symbol"
+              id="bike-road-line"
+              type="line"
               layout={{
-                "icon-image": SUGGEST_PIN,
-                "icon-size": [
+                visibility: showBikeRoads ? "visible" : "none",
+                "line-join": "round",
+                "line-cap": "round",
+              }}
+              paint={{
+                "line-color": "#eab308",
+                "line-opacity": 0.95,
+                // 줌 아웃에서도 보이도록 두께를 줌에 맞춰 키움
+                "line-width": [
                   "interpolate",
                   ["linear"],
                   ["zoom"],
-                  10,
-                  0.1,
-                  14,
-                  0.14,
+                  9,
+                  1.2,
+                  12,
+                  2.5,
+                  15,
+                  5,
+                  17,
+                  8,
                 ],
-                "icon-anchor": "bottom",
-                "icon-allow-overlap": true,
-                "icon-ignore-placement": true,
               }}
             />
           </Source>
         )}
 
-        <Source
-          id="pharm-points"
-          key={dataKey}
-          type="geojson"
-          data={pointsGeo}
-          cluster
-          clusterMaxZoom={13}
-          clusterRadius={50}
-        >
-          <Layer
-            id="pharm-clusters"
-            type="circle"
-            filter={["has", "point_count"]}
-            paint={{
-              "circle-color": ["step", ["get", "point_count"], "#5eead4", 20, "#14b8a6", 60, "#0f766e"],
-              "circle-radius": ["step", ["get", "point_count"], 18, 20, 24, 60, 30],
-              "circle-stroke-width": 2,
-              "circle-stroke-color": "#fff",
-            }}
-          />
-          <Layer
-            id="pharm-cluster-count"
-            type="symbol"
-            filter={["has", "point_count"]}
-            layout={{
-              "text-field": ["get", "point_count_abbreviated"],
-              "text-size": 16,
-              "text-font": ["Open Sans Bold", "Open Sans Regular"],
-            }}
-            paint={{ "text-color": "#ffffff" }}
-          />
-          {iconsReady && (
+        {childZoneGeo && (
+          <Source id="child-zones" type="geojson" data={childZoneGeoFiltered} tolerance={0}>
             <Layer
-              id="pharm-points"
+              id="child-zone-fill"
+              type="fill"
+              layout={{ visibility: showChildZones ? "visible" : "none" }}
+              paint={{
+                "fill-color": "#f59e0b",
+                "fill-opacity": 0.22,
+              }}
+            />
+            <Layer
+              id="child-zone-outline"
+              type="line"
+              layout={{ visibility: showChildZones ? "visible" : "none" }}
+              paint={{
+                "line-color": "#b45309",
+                "line-width": 1.2,
+                "line-opacity": 0.85,
+              }}
+            />
+          </Source>
+        )}
+
+        {elderlyZoneGeo && (
+          <Source id="elderly-zones" type="geojson" data={elderlyZoneGeoFiltered} tolerance={0}>
+            <Layer
+              id="elderly-zone-fill"
+              type="fill"
+              layout={{ visibility: showElderlyZones ? "visible" : "none" }}
+              paint={{
+                "fill-color": "#8b5cf6",
+                "fill-opacity": 0.22,
+              }}
+            />
+            <Layer
+              id="elderly-zone-outline"
+              type="line"
+              layout={{ visibility: showElderlyZones ? "visible" : "none" }}
+              paint={{
+                "line-color": "#5b21b6",
+                "line-width": 1.2,
+                "line-opacity": 0.85,
+              }}
+            />
+          </Source>
+        )}
+
+        {accidentGeoFiltered && iconsReady && (
+          <Source id="accidents" type="geojson" data={accidentGeoFiltered}>
+            <Layer
+              id="accident-points"
               type="symbol"
-              filter={["!", ["has", "point_count"]]}
               layout={{
-                "icon-image": ["get", "pin"],
-                "icon-size": [
-                  "case",
-                  ["==", ["get", "id"], selectedId],
-                  0.16,
-                  0.12,
-                ],
+                "icon-image": ["get", "icon"],
+                "icon-size": 0.08,
                 "icon-anchor": "bottom",
                 "icon-allow-overlap": true,
                 "icon-ignore-placement": true,
+                visibility: accidentGeoFiltered.features.length > 0 ? "visible" : "none",
               }}
             />
-          )}
-        </Source>
+          </Source>
+        )}
 
-        {popup && (
+        {hoveredAccident && (
           <Popup
-            longitude={popup.lon}
-            latitude={popup.lat}
+            longitude={hoveredAccident.lon}
+            latitude={hoveredAccident.lat}
             anchor="bottom"
-            offset={12}
-            maxWidth="360px"
+            offset={10}
             closeButton={false}
             closeOnClick={false}
-            className="halflife-popup"
           >
             <div
-              className="w-[340px] overflow-hidden rounded-lg"
+              className="w-[220px] p-2 text-xs"
               onMouseEnter={() => {
-                popupHoverRef.current = true;
-                cancelHoverClear();
+                popupLockRef.current = true;
               }}
               onMouseLeave={() => {
-                popupHoverRef.current = false;
-                clearHover();
+                popupLockRef.current = false;
+                setHoveredAccident(null);
               }}
             >
-              <div className="p-3">
-                <p className="text-sm font-semibold">{popup.name}</p>
-                <p className="text-muted-foreground mt-1 text-xs">{popup.sgg}</p>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {popup.isEvening && <Badge variant="secondary">저녁 21시+</Badge>}
-                  {popup.isLateNight && <Badge variant="secondary">심야 22시+</Badge>}
-                  <Badge variant="outline">평일 마감 {fmtClose(popup.maxWeekdayClose)}</Badge>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 border-t">
-                <Button
-                  variant="ghost"
-                  className="rounded-none text-sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSelect(popup);
-                  }}
+              <p className="font-semibold">{hoveredAccident.name}</p>
+              <p className="text-muted-foreground mt-0.5">
+                {hoveredAccident.accidentType} · 사고 {hoveredAccident.accidentCount}건 · 사상자{" "}
+                {hoveredAccident.casualties}명
+              </p>
+              <Button asChild variant="outline" size="sm" className="mt-2 w-full">
+                <a
+                  href={roadviewUrl(hoveredAccident.lat, hoveredAccident.lon)}
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
-                  자세히 보기
-                </Button>
-                <Button asChild variant="ghost" className="rounded-none border-l text-sm">
-                  <a
-                    href={roadviewUrl(popup.lat, popup.lon)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    로드뷰
-                    <ExternalLink className="size-4" />
-                  </a>
-                </Button>
-              </div>
+                  로드뷰 보기
+                  <ExternalLink className="size-3.5" />
+                </a>
+              </Button>
+            </div>
+          </Popup>
+        )}
+
+        {!hoveredAccident && hoveredChildZone && (
+          <Popup
+            longitude={hoveredChildZone.lon}
+            latitude={hoveredChildZone.lat}
+            anchor="bottom"
+            offset={8}
+            closeButton={false}
+            closeOnClick={false}
+          >
+            <div
+              className="w-[220px] p-2 text-xs"
+              onMouseEnter={() => {
+                popupLockRef.current = true;
+              }}
+              onMouseLeave={() => {
+                popupLockRef.current = false;
+                setHoveredChildZone(null);
+              }}
+            >
+              <p className="font-semibold">{hoveredChildZone.name}</p>
+              <p className="text-muted-foreground mt-0.5">
+                어린이보호구역 · {hoveredChildZone.facilityType} · 도로 따라 300m
+              </p>
+              <p className="text-muted-foreground mt-0.5">
+                CCTV {hoveredChildZone.cctv ? `설치 (${hoveredChildZone.cctvCount}대)` : "미설치"}
+              </p>
+              <Button asChild variant="outline" size="sm" className="mt-2 w-full">
+                <a
+                  href={roadviewUrl(hoveredChildZone.lat, hoveredChildZone.lon)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  로드뷰 보기
+                  <ExternalLink className="size-3.5" />
+                </a>
+              </Button>
+            </div>
+          </Popup>
+        )}
+
+        {!hoveredAccident && !hoveredChildZone && hoveredElderlyZone && (
+          <Popup
+            longitude={hoveredElderlyZone.lon}
+            latitude={hoveredElderlyZone.lat}
+            anchor="bottom"
+            offset={8}
+            closeButton={false}
+            closeOnClick={false}
+          >
+            <div
+              className="w-[220px] p-2 text-xs"
+              onMouseEnter={() => {
+                popupLockRef.current = true;
+              }}
+              onMouseLeave={() => {
+                popupLockRef.current = false;
+                setHoveredElderlyZone(null);
+              }}
+            >
+              <p className="font-semibold">{hoveredElderlyZone.name}</p>
+              <p className="text-muted-foreground mt-0.5">
+                노인장애인보호구역 · 도로 따라 300m
+              </p>
+              <p className="text-muted-foreground mt-0.5">
+                CCTV {hoveredElderlyZone.cctv ? `설치 (${hoveredElderlyZone.cctvCount}대)` : "미설치"}
+              </p>
+              <Button asChild variant="outline" size="sm" className="mt-2 w-full">
+                <a
+                  href={roadviewUrl(hoveredElderlyZone.lat, hoveredElderlyZone.lon)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  로드뷰 보기
+                  <ExternalLink className="size-3.5" />
+                </a>
+              </Button>
+            </div>
+          </Popup>
+        )}
+
+        {!hoveredAccident && !hoveredChildZone && !hoveredElderlyZone && hoveredBikeRoad && (
+          <Popup
+            longitude={hoveredBikeRoad.lon}
+            latitude={hoveredBikeRoad.lat}
+            anchor="bottom"
+            offset={8}
+            closeButton={false}
+            closeOnClick={false}
+          >
+            <div
+              className="w-[200px] p-2 text-xs"
+              onMouseEnter={() => {
+                popupLockRef.current = true;
+              }}
+              onMouseLeave={() => {
+                popupLockRef.current = false;
+                setHoveredBikeRoad(null);
+              }}
+            >
+              <p className="font-semibold">{hoveredBikeRoad.name}</p>
+              <p className="text-muted-foreground mt-0.5">OSM 자전거전용도로</p>
+              <Button asChild variant="outline" size="sm" className="mt-2 w-full">
+                <a
+                  href={roadviewUrl(hoveredBikeRoad.lat, hoveredBikeRoad.lon)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  로드뷰 보기
+                  <ExternalLink className="size-3.5" />
+                </a>
+              </Button>
             </div>
           </Popup>
         )}
       </MapGL>
 
       <div className="pointer-events-auto absolute bottom-4 left-4 flex max-w-[280px] flex-col gap-1.5 rounded-xl border bg-background/90 p-3 text-xs shadow-lg backdrop-blur-md">
+        <div className="flex items-center gap-1 rounded-lg border bg-muted/40 p-0.5">
+          <button
+            type="button"
+            className={`flex-1 rounded-md px-2 py-1 font-medium transition-colors ${
+              colorMode === "bike" ? "bg-background shadow-sm" : "text-muted-foreground"
+            }`}
+            onClick={() => setColorMode("bike")}
+          >
+            자전거
+          </button>
+          <button
+            type="button"
+            className={`flex-1 rounded-md px-2 py-1 font-medium transition-colors ${
+              colorMode === "child" ? "bg-background shadow-sm" : "text-muted-foreground"
+            }`}
+            onClick={() => setColorMode("child")}
+          >
+            어린이
+          </button>
+          <button
+            type="button"
+            className={`flex-1 rounded-md px-2 py-1 font-medium transition-colors ${
+              colorMode === "elderly" ? "bg-background shadow-sm" : "text-muted-foreground"
+            }`}
+            onClick={() => setColorMode("elderly")}
+          >
+            노인
+          </button>
+        </div>
         {inspected ? (
           <div className="mt-1 rounded-lg border bg-background/80 p-2.5">
             <div className="flex items-center gap-2">
               <span
                 className="inline-block size-3.5 shrink-0 rounded-sm border"
-                style={{ background: gapFill(inspected.gapScore) }}
+                style={{ background: gapFill(scoreOf(inspected)) }}
               />
               <span className="font-semibold">{inspected.sgg}</span>
               {paintedSet.has(inspected.sgg) || autoHighlighted.has(inspected.sgg) ? (
@@ -544,13 +806,26 @@ export function MapView({
             </div>
             <div className="text-muted-foreground mt-1.5 space-y-0.5">
               <div>
-                공백 점수 <span className="text-foreground font-medium">{inspected.gapScore}</span>
-                {" · "}
-                공백 {(inspected.uncoveredShare * 100).toFixed(1)}%
+                {colorMode === "bike" ? "자전거 점수" : colorMode === "child" ? "어린이 점수" : "노인 점수"}{" "}
+                <span className="text-foreground font-medium">{scoreOf(inspected)}</span>
               </div>
               <div>
-                저녁 약국 {inspected.eveningCount}곳 · 추정 공백인구{" "}
-                {inspected.estUncoveredPop.toLocaleString()}명
+                자전거사고 발생 {inspected.bikeAccidentCount.toLocaleString()}건 · 자전거도로{" "}
+                {inspected.bikeRoadKm}km (도로 1km당 {inspected.bikeAccidentPerRoadKm})
+              </div>
+              <div>
+                지도 핀(자전거 다발지점) {(inspected.bikeHotspotCount ?? 0).toLocaleString()}곳 ·
+                전체 다발지점 {inspected.accidentCount}곳
+              </div>
+              <div>
+                어린이보호구역 {inspected.childZoneCount}곳 · 어린이 사고다발지점{" "}
+                {inspected.childAccidentCount}건 (보호구역 100곳당{" "}
+                {inspected.childAccidentPerZone})
+              </div>
+              <div>
+                노인장애인보호구역 {inspected.elderlyZoneCount}곳 · 보행노인 사고{" "}
+                {inspected.elderlyAccidentCount}건 (보호구역 100곳당{" "}
+                {inspected.elderlyAccidentPerZone})
               </div>
             </div>
           </div>
@@ -569,29 +844,42 @@ export function MapView({
         ) : null}
         {gapFillStep > 0 ? (
           <div className="text-muted-foreground">
-            필터: 공백 상위 {Math.min(gapFillStep, 25)}개 구도 함께 표시 중
+            필터: 위험 상위 {Math.min(gapFillStep, 25)}개 구도 함께 표시 중
           </div>
         ) : null}
-        <label className="mt-1 flex cursor-pointer items-center gap-1.5">
-          <Checkbox checked={showUncovered} onCheckedChange={(v) => setShowUncovered(v === true)} />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/markers/pin-suggest.png" alt="" className="h-5 w-5 object-contain" />
-          저녁 약국이 있으면 좋을 위치
-        </label>
+        <div className="text-muted-foreground mt-1">
+          {colorMode === "bike"
+            ? "색이 진할수록 자전거도로 길이 대비 자전거사고와 사고다발지점이 많은 자치구입니다."
+            : colorMode === "child"
+              ? "색이 진할수록 어린이보호구역 대비 어린이 사고다발지점이 많은 자치구입니다."
+              : "색이 진할수록 노인장애인보호구역 대비 보행노인 사고다발지점이 많은 자치구입니다."}
+        </div>
         <div className="mt-1 flex items-center gap-1.5">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/markers/pin-pharm-evening.png" alt="" className="h-5 w-5 object-contain" />
-          저녁 약국 (21시+)
+          <span className="inline-block size-2.5 shrink-0 rounded-sm border border-[#a16207] bg-[#eab308]/55" />
+          자전거전용도로
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="inline-block size-2.5 shrink-0 rounded-sm border border-[#b45309] bg-[#f59e0b]/55" />
+          어린이보호구역 (도로 연결)
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="inline-block size-2.5 shrink-0 rounded-sm border border-[#5b21b6] bg-[#8b5cf6]/55" />
+          노인장애인보호구역 (도로 연결)
         </div>
         <div className="flex items-center gap-1.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/markers/pin-pharm-late.png" alt="" className="h-5 w-5 object-contain" />
-          심야 약국 (22시+)
+          <img src="/markers/pin-accident-bike.png" alt="" className="h-5 w-5 object-contain" />
+          자전거 사고다발지점
         </div>
         <div className="flex items-center gap-1.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/markers/pin-pharm-normal.png" alt="" className="h-5 w-5 object-contain" />
-          일반 약국
+          <img src="/markers/pin-accident-elderly.png" alt="" className="h-5 w-5 object-contain" />
+          보행노인 사고다발지점
+        </div>
+        <div className="flex items-center gap-1.5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/markers/pin-accident-child.png" alt="" className="h-5 w-5 object-contain" />
+          보행/스쿨존 어린이 사고다발지점
         </div>
       </div>
     </>

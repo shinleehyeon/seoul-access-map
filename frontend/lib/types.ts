@@ -47,6 +47,12 @@ export interface DistrictStat {
   livingPopRatio?: number;
   /** 시 전체 저녁 약국 대비 점유율 */
   eveningShare?: number;
+  /** 고령 1인가구 쉼터 접근 공백 (독거노인 밀도 ↑, 경로당·약국 부족 ↑일수록 상승) */
+  elderlyCount?: number;
+  elderlyPer10k?: number;
+  centerCount?: number;
+  centerPer1kElderly?: number;
+  pharmacyGapScore?: number;
 }
 
 export interface Summary {

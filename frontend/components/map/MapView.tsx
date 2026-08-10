@@ -378,7 +378,7 @@ export function MapView({
               type="fill"
               paint={{
                 "fill-color": fillColorExpr as unknown as string,
-                "fill-opacity": anyPainted ? 0.48 : 0.14,
+                "fill-opacity": anyPainted ? 0.6 : 0.14,
               }}
             />
             <Layer

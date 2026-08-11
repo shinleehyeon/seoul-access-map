@@ -1,4 +1,11 @@
+import { InterventionChat } from "@/components/insights/InterventionChat";
 import { InterventionTable } from "@/components/insights/InterventionTable";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { getBikeAccidentInsights } from "@/lib/data";
 
 export default async function InterventionPage() {
@@ -17,10 +24,24 @@ export default async function InterventionPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">해결 방안</h1>
         <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
-          서울 자전거 사고 데이터에서 반복적으로 나타나는 패턴을 바탕으로 한 개입 방향 요약입니다.
+          AI와 대화하며 서울 자전거 사고 패턴에 맞는 개입 방향을 탐색하세요.
         </p>
       </div>
-      <InterventionTable headline={insights.headline} />
+
+      <div className="flex min-h-[420px] flex-1 flex-col">
+        <InterventionChat />
+      </div>
+
+      <Accordion type="single" collapsible className="rounded-2xl border px-4">
+        <AccordionItem value="interventions" className="border-none">
+          <AccordionTrigger className="text-sm font-medium hover:no-underline">
+            개입 방향 참고 표
+          </AccordionTrigger>
+          <AccordionContent>
+            <InterventionTable headline={insights.headline} />
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 }

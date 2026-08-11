@@ -30,11 +30,18 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" variant="inset" className="bg-gray-100">
       <SidebarHeader className="px-3 py-3">
-        <span className="flex items-center gap-2 text-sm font-semibold">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-rose-800 text-xs text-white">
-            안
+        <span className="flex items-center gap-2 text-sm font-semibold leading-tight">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/sesac.jpg"
+            alt=""
+            width={28}
+            height={28}
+            className="size-7 shrink-0 rounded-lg object-cover"
+          />
+          <span className="group-data-[collapsible=icon]:hidden">
+            서울 자전거 피해 사고 인사이트
           </span>
-          교통안전 공백
         </span>
       </SidebarHeader>
       <SidebarContent className="px-2">

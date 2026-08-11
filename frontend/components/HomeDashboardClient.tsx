@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
-  ArrowUpRight,
   Info,
   Minus,
   ShieldAlert,
@@ -31,13 +30,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AgeRiskChart, OpponentFatalityChart } from "@/components/insights/OpponentAgeCharts";
+import { AgeRiskChart } from "@/components/insights/OpponentAgeCharts";
 import { RoadTypeRiskChart, RoadTypeShareChart } from "@/components/insights/RoadTypeCharts";
 import {
   BikeRoadCompareChart,
   HourVolumeFatalityChart,
   MonthVolumeChart,
 } from "@/components/insights/TimeSeasonCharts";
+import { DayHourHeatmap } from "@/components/insights/DayHourHeatmap";
 import { BlackspotRankingTable } from "@/components/insights/BlackspotRankingTable";
 import { YearCalendarPicker } from "@/components/insights/YearCalendarPicker";
 import {
@@ -51,6 +51,85 @@ import {
 import type { BikeAccidentInsights } from "@/lib/types";
 
 const KPI_ACCENTS = ["#e67e22", "#1abc9c", "#2c3e50", "#f1c40f"] as const;
+const KPI_COUNT_MS = 720;
+
+function parseKpiPrimary(primary: string) {
+  const m = primary.match(/^([\d,]+(?:\.\d+)?)(.*)$/);
+  if (!m) return null;
+  const raw = m[1].replace(/,/g, "");
+  const decimals = raw.includes(".") ? (raw.split(".")[1]?.length ?? 0) : 0;
+  return {
+    value: Number(raw),
+    decimals,
+    suffix: m[2],
+    useLocale: m[1].includes(","),
+  };
+}
+
+function formatKpiPrimary(
+  value: number,
+  decimals: number,
+  useLocale: boolean,
+  suffix: string
+) {
+  const body = useLocale
+    ? Math.round(value).toLocaleString("ko-KR")
+    : value.toFixed(decimals);
+  return `${body}${suffix}`;
+}
+
+function TypedKpiNumber({ primary }: { primary: string }) {
+  const [display, setDisplay] = useState(() => {
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return primary;
+    }
+    const parsed = parseKpiPrimary(primary);
+    if (!parsed || !Number.isFinite(parsed.value)) return primary;
+    return formatKpiPrimary(0, parsed.decimals, parsed.useLocale, parsed.suffix);
+  });
+
+  useEffect(() => {
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      return;
+    }
+    const parsed = parseKpiPrimary(primary);
+    if (!parsed || !Number.isFinite(parsed.value)) return;
+
+    const start = performance.now();
+    let raf = 0;
+
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / KPI_COUNT_MS);
+      const eased = 1 - (1 - t) ** 3;
+      setDisplay(
+        t >= 1
+          ? primary
+          : formatKpiPrimary(
+              parsed.value * eased,
+              parsed.decimals,
+              parsed.useLocale,
+              parsed.suffix
+            )
+      );
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [primary]);
+
+  return (
+    <span className="text-[22px] font-bold leading-none tracking-tight text-[#18181b] tabular-nums">
+      {display}
+    </span>
+  );
+}
 
 function ChartCardHeader({
   title,
@@ -94,26 +173,29 @@ function ChartCardHeader({
 
 type KpiTone = "onTrack" | "atRisk" | "stable" | "review";
 
-const KPI_TONE: Record<
-  KpiTone,
-  { bg: string; fg: string; icon: LucideIcon }
-> = {
-  onTrack: { bg: "bg-[#e8f8ef]", fg: "text-[#1f7a4d]", icon: TrendingUp },
-  atRisk: { bg: "bg-[#fdecee]", fg: "text-[#c23b45]", icon: TrendingDown },
-  stable: { bg: "bg-[#fff3e6]", fg: "text-[#c26a1a]", icon: Minus },
-  review: { bg: "bg-[#eaf2ff]", fg: "text-[#2f6fed]", icon: ShieldAlert },
+const KPI_TONE: Record<KpiTone, LucideIcon> = {
+  onTrack: TrendingUp,
+  atRisk: TrendingDown,
+  stable: Minus,
+  review: ShieldAlert,
 };
 
 function KpiBadge({ tone, text }: { tone: KpiTone; text: string }) {
-  const { bg, fg, icon: Icon } = KPI_TONE[tone];
+  const Icon = KPI_TONE[tone];
   return (
-    <span
-      className={`inline-flex max-w-full items-center gap-1 rounded-full px-1.5 py-0.5 text-[12px] font-semibold ${bg} ${fg}`}
-    >
-      <Icon className="size-3.5 shrink-0" strokeWidth={2.25} />
+    <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-[#e5e5e5] bg-[#fafafa] px-1.5 py-0.5 text-[12px] font-semibold text-[#3f3f46]">
+      <Icon className="size-3.5 shrink-0 text-[#525252]" strokeWidth={2.25} />
       <span className="truncate">{text}</span>
     </span>
   );
+}
+
+/** 사망 점유 ÷ 사고 비중 — "사고 11.9% · 3.0배" */
+function deathVsAccidentBadge(deathShare: number, accidentShare: number) {
+  if (accidentShare <= 0) return `사고 비중 ${accidentShare}%`;
+  const ratio = deathShare / accidentShare;
+  const ratioText = ratio >= 10 ? `${Math.round(ratio)}배` : `${ratio.toFixed(1)}배`;
+  return `사고 ${accidentShare}% · ${ratioText}`;
 }
 
 function Kpi({
@@ -122,35 +204,24 @@ function Kpi({
   tone,
   primary,
   accent,
-  href = "/map",
 }: {
   label: string;
   badge: string;
   tone: KpiTone;
   primary: string;
   accent: string;
-  href?: string;
 }) {
   return (
-    <a
-      href={href}
-      className="group relative flex items-stretch gap-3 rounded-xl border border-[#e8e8e8] bg-white px-4 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:border-[#d4d4d4]"
-    >
+    <div className="relative flex items-stretch gap-3 rounded-xl border border-[#e8e8e8] bg-white px-4 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
       <span className="my-0.5 w-1 shrink-0 rounded-full" style={{ background: accent }} />
-      <div className="min-w-0 flex-1 pr-5">
+      <div className="min-w-0 flex-1">
         <p className="text-[13px] font-medium text-[#3f3f46]">{label}</p>
         <div className="mt-2.5 flex flex-wrap items-center gap-2">
-          <span className="text-[22px] font-bold leading-none tracking-tight text-[#18181b] tabular-nums">
-            {primary}
-          </span>
+          <TypedKpiNumber key={primary} primary={primary} />
           <KpiBadge tone={tone} text={badge} />
         </div>
       </div>
-      <ArrowUpRight
-        className="absolute top-3.5 right-3 size-4 text-[#a1a1aa] transition-colors group-hover:text-[#71717a]"
-        strokeWidth={1.75}
-      />
-    </a>
+    </div>
   );
 }
 
@@ -246,10 +317,10 @@ export function HomeDashboardClient({
   const {
     headline,
     roadTypes,
-    opponents,
     ages,
     violations,
     hours,
+    dayHour,
     seasons,
     months,
     bikeRoadCompare,
@@ -259,7 +330,6 @@ export function HomeDashboardClient({
   const bikeOff = bikeRoadCompare.find((d) => d.key.includes("밖"));
   const bikeTotal = (bikeOn?.n ?? 0) + (bikeOff?.n ?? 0) || 1;
   const bikeOffShare = bikeOff ? (bikeOff.n / bikeTotal) * 100 : 0;
-  const opponentMin = isAll && fullPeriod ? 50 : 5;
   const violationNote = isAll && fullPeriod ? "표본 n≥50" : "표본 n≥5";
   const chartKey = `${periodLabel}-${scope}-${slice.total}`;
   const blackspots = resolvePeriodBlackspots(insights, period, sgg);
@@ -292,18 +362,14 @@ export function HomeDashboardClient({
         <Kpi
           label="전용도로 밖 비중"
           tone={bikeOffShare >= 50 ? "atRisk" : "onTrack"}
-          badge={
-            bikeOffShare >= 50
-              ? `주의: ${(bikeOff?.n ?? 0).toLocaleString()}건`
-              : `양호: ${(bikeOff?.n ?? 0).toLocaleString()}건`
-          }
+          badge={`위 ${(100 - bikeOffShare).toFixed(1)}%`}
           primary={`${bikeOffShare.toFixed(1)}%`}
           accent={KPI_ACCENTS[0]}
         />
         <Kpi
           label={isAll ? "전체 사고" : `${sgg} 사고`}
           tone="review"
-          badge={`사망: ${slice.deaths}명`}
+          badge={`사망 ${slice.deaths.toLocaleString()}명`}
           primary={`${slice.total.toLocaleString()}건`}
           accent={KPI_ACCENTS[1]}
         />
@@ -314,11 +380,10 @@ export function HomeDashboardClient({
               ? "atRisk"
               : "stable"
           }
-          badge={
-            headline.heavyVehicleDeathShare > headline.heavyVehicleAccidentShare * 2
-              ? `위험: 사고 ${headline.heavyVehicleAccidentShare}%`
-              : `안정: 사고 ${headline.heavyVehicleAccidentShare}%`
-          }
+          badge={deathVsAccidentBadge(
+            headline.heavyVehicleDeathShare,
+            headline.heavyVehicleAccidentShare
+          )}
           primary={`${headline.heavyVehicleDeathShare}%`}
           accent={KPI_ACCENTS[2]}
         />
@@ -329,11 +394,10 @@ export function HomeDashboardClient({
               ? "atRisk"
               : "onTrack"
           }
-          badge={
-            headline.elderlyDeathShare > headline.elderlyAccidentShare
-              ? `위험: 사고 ${headline.elderlyAccidentShare}%`
-              : `양호: 사고 ${headline.elderlyAccidentShare}%`
-          }
+          badge={deathVsAccidentBadge(
+            headline.elderlyDeathShare,
+            headline.elderlyAccidentShare
+          )}
           primary={`${headline.elderlyDeathShare}%`}
           accent={KPI_ACCENTS[3]}
         />
@@ -409,6 +473,17 @@ export function HomeDashboardClient({
         </Card>
       </div>
 
+      <Card className="rounded-2xl border shadow-none">
+        <ChartCardHeader
+          title="요일 × 시간 히트맵"
+          description="언제 사고가 몰리는지 · 건수/심각건수 전환"
+          info={`${scope} · 요일과 시간대 교차 분포입니다. 출퇴근·주말 패턴을 볼 때 씁니다. 심각건수는 사망·중상 사고 건수입니다.`}
+        />
+        <CardContent>
+          <DayHourHeatmap key={`${chartKey}-dh`} data={dayHour} />
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card className="rounded-2xl border shadow-none">
           <ChartCardHeader
@@ -483,22 +558,6 @@ export function HomeDashboardClient({
           </CardContent>
         </Card>
       </div>
-
-      <Card className="rounded-2xl border shadow-none">
-        <ChartCardHeader
-          title="상대차종별 치사율"
-          description="화물·승합·건설기계 등 대형차 관련 치명도"
-          info={`${scope} · 상대 차종별 치사율입니다. 화물·승합·건설기계 등 대형차와 관련된 치명도를 함께 보세요. 표본이 적은 차종은 제외될 수 있습니다.`}
-        />
-        <CardContent>
-          <OpponentFatalityChart key={`${chartKey}-opp`} data={opponents} minN={opponentMin} />
-        </CardContent>
-      </Card>
-
-      <p className="text-muted-foreground pb-4 text-xs leading-relaxed">
-        치사율 = 사망자수 ÷ 사고건수 × 1,000 · 심각사고율 = (사망사고+중상사고) ÷ 사고건수 ·
-        기간·자치구 필터 시 표본이 작아 치사율이 출렁일 수 있습니다.
-      </p>
     </div>
   );
 }

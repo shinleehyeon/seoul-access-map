@@ -95,9 +95,9 @@ function DistrictAvatarStack({ sggs }: { sggs: string[] }) {
           <Tooltip key={sgg}>
             <TooltipTrigger asChild>
               <span
-                className="relative inline-flex size-6 shrink-0 cursor-default items-center justify-center rounded-full bg-white ring-2 ring-white"
+                className="relative inline-flex size-7 shrink-0 cursor-default items-center justify-center rounded-full border-2 border-[#d4d4d8] bg-white ring-2 ring-white"
                 style={{
-                  marginLeft: i === 0 ? 0 : -6,
+                  marginLeft: i === 0 ? 0 : -7,
                   zIndex: raised === sgg ? 50 : sggs.length - i,
                 }}
                 onMouseEnter={() => setRaised(sgg)}
@@ -109,9 +109,9 @@ function DistrictAvatarStack({ sggs }: { sggs: string[] }) {
                 <img
                   src={districtLogoSrc(sgg)}
                   alt={sgg}
-                  width={24}
-                  height={24}
-                  className="size-6 rounded-full object-contain"
+                  width={28}
+                  height={28}
+                  className="size-7 rounded-full object-contain"
                   onError={(e) => {
                     e.currentTarget.style.display = "none";
                     const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
@@ -121,7 +121,7 @@ function DistrictAvatarStack({ sggs }: { sggs: string[] }) {
                     }
                   }}
                 />
-                <span className="bg-muted text-muted-foreground hidden size-6 items-center justify-center rounded-full text-[10px] font-semibold">
+                <span className="bg-muted text-muted-foreground hidden size-7 items-center justify-center rounded-full text-[10px] font-semibold">
                   {sgg.slice(0, 1)}
                 </span>
               </span>

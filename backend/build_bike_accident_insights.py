@@ -551,7 +551,13 @@ def main() -> None:
 
     city = build_slice(rows, on_bike, opponent_min=30, age_min=30, violation_min=50)
     by_sgg = build_sgg_map(
-        rows, on_bike, min_rows=30, opponent_min=5, age_min=5, violation_min=5
+        rows,
+        on_bike,
+        min_rows=30,
+        opponent_min=5,
+        age_min=5,
+        violation_min=5,
+        include_day_hour=True,
     )
     city_blackspots = build_blackspots(rows, top_n=30, min_n=3)
 
@@ -574,7 +580,7 @@ def main() -> None:
                     opponent_min=5,
                     age_min=5,
                     violation_min=5,
-                    include_day_hour=False,
+                    include_day_hour=True,
                 ),
                 "bySgg": build_sgg_map(
                     month_rows,
@@ -602,7 +608,7 @@ def main() -> None:
                 opponent_min=3,
                 age_min=3,
                 violation_min=3,
-                include_day_hour=False,
+                include_day_hour=True,
                 blackspot_min_n=2,
                 blackspot_top_n=30,
             ),

@@ -39,7 +39,7 @@ export function OpponentFatalityChart({
           <XAxis type="number" fontSize={11} tickLine={false} />
           <YAxis type="category" dataKey="key" fontSize={11} tickLine={false} width={64} />
           <Tooltip
-            isAnimationActive={false}
+           
             content={({ active, payload }) => {
               if (!active || !payload?.[0]) return null;
               const row = payload[0].payload as (typeof rows)[number];
@@ -54,7 +54,7 @@ export function OpponentFatalityChart({
               );
             }}
           />
-          <Bar dataKey="fatality" fill={CHART.fatality} radius={[0, 6, 6, 0]} isAnimationActive={false} />
+          <Bar dataKey="fatality" fill={CHART.fatality} radius={[0, 6, 6, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -93,7 +93,7 @@ export function AgeRiskChart({ data }: { data: BikeInsightBucket[] }) {
             <XAxis dataKey="key" fontSize={11} tickLine={false} />
             <YAxis fontSize={11} tickLine={false} width={32} />
             <Tooltip
-              isAnimationActive={false}
+             
               content={({ active, payload }) => {
                 if (!active || !payload?.[0]) return null;
                 const row = payload[0].payload as (typeof rows)[number];
@@ -108,8 +108,8 @@ export function AgeRiskChart({ data }: { data: BikeInsightBucket[] }) {
                 );
               }}
             />
-            <Bar dataKey="share" name="사고 비중 (%)" fill={CHART.count} radius={[4, 4, 0, 0]} isAnimationActive={false} />
-            <Bar dataKey="fatality" name="치사율 (/1000건)" fill={CHART.fatality} radius={[4, 4, 0, 0]} isAnimationActive={false} />
+            <Bar dataKey="share" name="사고 비중 (%)" fill={CHART.count} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="fatality" name="치사율 (/1000건)" fill={CHART.fatality} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

@@ -30,14 +30,14 @@ export function RoadTypeShareChart({ data }: { data: BikeInsightBucket[] }) {
             innerRadius={55}
             outerRadius={90}
             paddingAngle={2}
-            isAnimationActive={false}
+           
           >
             {rows.map((row, i) => (
               <Cell key={row.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
             ))}
           </Pie>
           <Tooltip
-            isAnimationActive={false}
+           
             content={({ active, payload }) => {
               if (!active || !payload?.[0]) return null;
               const row = payload[0].payload as (typeof rows)[number];
@@ -87,7 +87,7 @@ export function RoadTypeRiskChart({ data }: { data: BikeInsightBucket[] }) {
             <XAxis dataKey="key" fontSize={11} tickLine={false} />
             <YAxis fontSize={11} tickLine={false} width={32} />
             <Tooltip
-              isAnimationActive={false}
+             
               content={({ active, payload }) => {
                 if (!active || !payload?.[0]) return null;
                 const row = payload[0].payload as (typeof rows)[number];
@@ -102,8 +102,8 @@ export function RoadTypeRiskChart({ data }: { data: BikeInsightBucket[] }) {
                 );
               }}
             />
-            <Bar dataKey="fatality" name="치사율 (/1000건)" fill={CHART.fatality} radius={[4, 4, 0, 0]} isAnimationActive={false} />
-            <Bar dataKey="serious" name="심각사고율 (%)" fill={CHART.serious} radius={[4, 4, 0, 0]} isAnimationActive={false} />
+            <Bar dataKey="fatality" name="치사율 (/1000건)" fill={CHART.fatality} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="serious" name="심각사고율 (%)" fill={CHART.serious} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

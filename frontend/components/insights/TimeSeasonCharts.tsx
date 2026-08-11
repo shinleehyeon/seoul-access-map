@@ -36,7 +36,7 @@ export function HourVolumeFatalityChart({
             <YAxis yAxisId="count" fontSize={11} tickLine={false} width={28} />
             <YAxis yAxisId="fatality" orientation="right" fontSize={11} tickLine={false} width={28} />
             <Tooltip
-              isAnimationActive={false}
+             
               content={({ active, payload }) => {
                 if (!active || !payload?.[0]) return null;
                 const row = payload[0].payload as (typeof rows)[number];
@@ -59,7 +59,7 @@ export function HourVolumeFatalityChart({
               strokeWidth={2}
               dot={{ r: 3, fill: CHART.count }}
               activeDot={{ r: 5 }}
-              isAnimationActive={false}
+             
             />
             <Line
               yAxisId="fatality"
@@ -69,7 +69,7 @@ export function HourVolumeFatalityChart({
               strokeWidth={2}
               dot={{ r: 3, fill: CHART.fatality }}
               activeDot={{ r: 5 }}
-              isAnimationActive={false}
+             
             />
           </LineChart>
         </ResponsiveContainer>
@@ -92,14 +92,14 @@ export function MonthVolumeChart({
           <XAxis dataKey="month" fontSize={10} tickLine={false} />
           <YAxis fontSize={11} tickLine={false} width={28} />
           <Tooltip
-            isAnimationActive={false}
+           
             content={({ active, payload }) => {
               if (!active || !payload?.[0]) return null;
               const row = payload[0].payload as (typeof rows)[number];
               return <ChartTooltipShell title={row.month} lines={[`${row.n.toLocaleString()}건`]} />;
             }}
           />
-          <Bar dataKey="n" fill={CHART.accent} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+          <Bar dataKey="n" fill={CHART.accent} radius={[3, 3, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -128,7 +128,7 @@ export function BikeRoadCompareChart({ data }: { data: BikeInsightBucket[] }) {
             <XAxis dataKey="key" fontSize={11} tickLine={false} />
             <YAxis fontSize={11} tickLine={false} width={32} />
             <Tooltip
-              isAnimationActive={false}
+             
               content={({ active, payload }) => {
                 if (!active || !payload?.[0]) return null;
                 const row = payload[0].payload as (typeof rows)[number];
@@ -143,8 +143,8 @@ export function BikeRoadCompareChart({ data }: { data: BikeInsightBucket[] }) {
                 );
               }}
             />
-            <Bar dataKey="fatality" name="치사율 (/1000건)" fill={CHART.fatality} radius={[4, 4, 0, 0]} isAnimationActive={false} />
-            <Bar dataKey="serious" name="심각사고율 (%)" fill={CHART.serious} radius={[4, 4, 0, 0]} isAnimationActive={false} />
+            <Bar dataKey="fatality" name="치사율 (/1000건)" fill={CHART.fatality} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="serious" name="심각사고율 (%)" fill={CHART.serious} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

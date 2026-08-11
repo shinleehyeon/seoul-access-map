@@ -165,6 +165,7 @@ export function HomeDashboardClient({
   const cross = roadTypes.find((r) => r.key === "교차로");
   const opponentMin = isAll && fullPeriod ? 50 : 5;
   const violationNote = isAll && fullPeriod ? "표본 n≥50" : "표본 n≥5";
+  const chartKey = `${periodLabel}-${scope}-${slice.total}`;
 
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-4 md:p-6">
@@ -235,7 +236,7 @@ export function HomeDashboardClient({
             <CardDescription>{scope} · 단일로 vs 교차로 구성</CardDescription>
           </CardHeader>
           <CardContent>
-            <RoadTypeShareChart data={roadTypes} />
+            <RoadTypeShareChart key={`${chartKey}-share`} data={roadTypes} />
           </CardContent>
         </Card>
         <Card className="rounded-2xl border shadow-none">
@@ -244,7 +245,7 @@ export function HomeDashboardClient({
             <CardDescription>{scope} · 치사율(/1000건)과 사망+중상 비율(%)</CardDescription>
           </CardHeader>
           <CardContent>
-            <RoadTypeRiskChart data={roadTypes} />
+            <RoadTypeRiskChart key={`${chartKey}-risk`} data={roadTypes} />
           </CardContent>
         </Card>
       </div>
@@ -256,7 +257,7 @@ export function HomeDashboardClient({
             <CardDescription>{scope} · 화물·승합·건설기계 비중을 함께 보세요</CardDescription>
           </CardHeader>
           <CardContent>
-            <OpponentFatalityChart data={opponents} minN={opponentMin} />
+            <OpponentFatalityChart key={`${chartKey}-opp`} data={opponents} minN={opponentMin} />
           </CardContent>
         </Card>
         <Card className="rounded-2xl border shadow-none">
@@ -265,7 +266,7 @@ export function HomeDashboardClient({
             <CardDescription>{scope} · 가해 운전자(당사자1) 연령 기준</CardDescription>
           </CardHeader>
           <CardContent>
-            <AgeRiskChart data={ages} />
+            <AgeRiskChart key={`${chartKey}-age`} data={ages} />
           </CardContent>
         </Card>
       </div>
@@ -277,7 +278,7 @@ export function HomeDashboardClient({
             <CardDescription>{scope} · 표본이 적은 시간은 치사율 해석에 주의</CardDescription>
           </CardHeader>
           <CardContent>
-            <HourVolumeFatalityChart hours={hours} />
+            <HourVolumeFatalityChart key={`${chartKey}-hour`} hours={hours} />
           </CardContent>
         </Card>
       </div>
@@ -289,7 +290,7 @@ export function HomeDashboardClient({
             <CardDescription>{scope}</CardDescription>
           </CardHeader>
           <CardContent>
-            <MonthVolumeChart months={months} />
+            <MonthVolumeChart key={`${chartKey}-month`} months={months} />
           </CardContent>
         </Card>
         <Card className="rounded-2xl border shadow-none">
@@ -329,7 +330,7 @@ export function HomeDashboardClient({
             <CardDescription>{scope} · 전용도로 50m 인접 기준</CardDescription>
           </CardHeader>
           <CardContent>
-            <BikeRoadCompareChart data={bikeRoadCompare} />
+            <BikeRoadCompareChart key={`${chartKey}-bike`} data={bikeRoadCompare} />
           </CardContent>
         </Card>
         <Card className="rounded-2xl border shadow-none">
@@ -374,7 +375,7 @@ export function HomeDashboardClient({
       {isAll ? (
         <Card className="rounded-2xl border shadow-none">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium">자치구 — 다발과 치명은 다른 지도</CardTitle>
+            <CardTitle className="text-base font-medium">자치구 — 여러 지표</CardTitle>
             <CardDescription>
               {periodLabel} · 시 전체 비교용. 정렬을 바꿔 보세요. 건수 1위와 치사율 1위는 보통
               다릅니다.
@@ -386,60 +387,10 @@ export function HomeDashboardClient({
         </Card>
       ) : null}
 
-      {isAll && fullPeriod ? (
-        <Card className="rounded-2xl border shadow-none">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium">개입 방향</CardTitle>
-            <CardDescription>시 전체·전 기간 패턴 기준 처방 요약</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>문제</TableHead>
-                  <TableHead>신호</TableHead>
-                  <TableHead>개입</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {[
-                  ["대형차 사망", "사고 10% → 사망 44%", "물류·공사 동선 분리, 우회전 안전"],
-                  ["고령 사망", "사고 20% → 사망 54%", "생활권 교차로·저속화"],
-                  ["교차로 치명", "치사율 9.11 vs 단일 5.28", "신호·회전 속도·횡단보도내 우선"],
-                  ["단일로 다발", "건수 49% · 심각률 28.5%", "자전거도로 분리·노면 표시"],
-                  [
-                    "보도 충돌",
-                    `보행자 ${insights.headline.pedestrianCount.toLocaleString()}건`,
-                    "안전한 차도측 자전거 공간",
-                  ],
-                  [
-                    "전용도로 중상",
-                    `심각률 ${insights.headline.bikeBikeSeriousRate}%`,
-                    "폭·일방화·속도 관리",
-                  ],
-                  [
-                    "새벽 사망",
-                    `05–07 치사율 ${insights.headline.dawnFatalityPer1000}`,
-                    "새벽 화물축 조명·분리",
-                  ],
-                  ["중앙선침범", "치사율 14.6", "단일로 중앙분리·과속 억제"],
-                ].map(([problem, signal, action]) => (
-                  <TableRow key={problem}>
-                    <TableCell className="font-medium">{problem}</TableCell>
-                    <TableCell className="text-muted-foreground">{signal}</TableCell>
-                    <TableCell>{action}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ) : null}
-
       <p className="text-muted-foreground pb-4 text-xs leading-relaxed">
         치사율 = 사망자수 ÷ 사고건수 × 1,000 · 심각사고율 = (사망사고+중상사고) ÷ 사고건수 ·
         기간·자치구 필터 시 표본이 작아 치사율이 출렁일 수 있습니다 · 자치구 비교 표는 전체 구
-        보기에서, 개입 방향은 전체 기간·전체 구에서만 표시됩니다.
+        보기에서만 표시됩니다.
       </p>
     </div>
   );

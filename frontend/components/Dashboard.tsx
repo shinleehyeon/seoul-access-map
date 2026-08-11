@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
-import { ChevronDown } from "lucide-react";
 import {
   DEFAULT_SEVERITY_FILTER,
   DEFAULT_TYPES,
@@ -71,7 +70,6 @@ export function Dashboard() {
     window.localStorage.setItem("map-filters", JSON.stringify(filters));
   }, [filters]);
 
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [panelSlot, setPanelSlot] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -79,22 +77,7 @@ export function Dashboard() {
     setPanelSlot(document.getElementById("map-sidebar-panel-slot"));
   }, []);
 
-  const panel = (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <button
-        onClick={() => setSidebarOpen((v) => !v)}
-        className="hover:bg-accent flex shrink-0 items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors"
-      >
-        <span className="text-muted-foreground flex-1 text-sm font-medium">필터</span>
-        <ChevronDown
-          className={`text-muted-foreground size-4 transition-transform ${sidebarOpen ? "rotate-180" : ""}`}
-        />
-      </button>
-      {sidebarOpen && (
-        <FilterSidebar districts={SEOUL_DISTRICTS} filters={filters} onChange={setFilters} />
-      )}
-    </div>
-  );
+  const panel = <FilterSidebar districts={SEOUL_DISTRICTS} filters={filters} onChange={setFilters} />;
 
   return (
     <div className="relative flex h-full min-h-0">

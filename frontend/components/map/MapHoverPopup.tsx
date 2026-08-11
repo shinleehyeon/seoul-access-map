@@ -190,7 +190,7 @@ export function MapHoverPopup({
         longitude={hover.lon}
         latitude={hover.lat}
         anchor="bottom"
-        offset={hover.kind === "accident" ? 10 : 8}
+        offset={hover.kind === "accident" ? 10 : hover.kind === "bikeRoad" ? -10 : 8}
         maxWidth={hover.kind === "accident" ? "300px" : "240px"}
         closeButton={false}
         closeOnClick={false}

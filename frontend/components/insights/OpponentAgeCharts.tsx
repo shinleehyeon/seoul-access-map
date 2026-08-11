@@ -35,7 +35,7 @@ export function OpponentFatalityChart({
     <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={rows} layout="vertical" margin={{ top: 4, right: 12, left: 4, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={CHART.grid} />
           <XAxis type="number" fontSize={11} tickLine={false} />
           <YAxis type="category" dataKey="key" fontSize={11} tickLine={false} width={64} />
           <Tooltip
@@ -54,7 +54,7 @@ export function OpponentFatalityChart({
               );
             }}
           />
-          <Bar dataKey="fatality" fill={CHART.fatality} radius={[0, 6, 6, 0]} />
+          <Bar dataKey="fatality" fill={CHART.accent} radius={[0, 6, 6, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -82,14 +82,14 @@ export function AgeRiskChart({ data }: { data: BikeInsightBucket[] }) {
     <div className="w-full">
       <ChartLegend
         items={[
-          { color: CHART.count, label: "사고 비중 (%)" },
-          { color: CHART.fatality, label: "치사율 (/1000건)" },
+          { color: CHART.accent, label: "사고 비중 (%)" },
+          { color: CHART.count, label: "치사율 (/1000건)" },
         ]}
       />
       <div className="h-72 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART.grid} />
             <XAxis dataKey="key" fontSize={11} tickLine={false} />
             <YAxis fontSize={11} tickLine={false} width={32} />
             <Tooltip
@@ -108,8 +108,8 @@ export function AgeRiskChart({ data }: { data: BikeInsightBucket[] }) {
                 );
               }}
             />
-            <Bar dataKey="share" name="사고 비중 (%)" fill={CHART.count} radius={[4, 4, 0, 0]} />
-            <Bar dataKey="fatality" name="치사율 (/1000건)" fill={CHART.fatality} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="share" name="사고 비중 (%)" fill={CHART.accent} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="fatality" name="치사율 (/1000건)" fill={CHART.count} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

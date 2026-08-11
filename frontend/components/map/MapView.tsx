@@ -17,7 +17,15 @@ import { metricFill } from "@/lib/color";
 import { resolvePeriodDistricts } from "@/lib/bikeInsightPeriod";
 import { useMapData } from "./useMapData";
 import { AccidentDetailDialog, MapHoverPopup, useMapHover } from "./MapHoverPopup";
-import { AccidentLayer, BikeAccidentClusterLayer, BikeRoadLayer, DistrictLayer, ZoneLayer } from "./MapLayers";
+import {
+  AccidentLayer,
+  BikeAccidentClusterLayer,
+  BikeRoadLayer,
+  BlackspotPolygonLayer,
+  DistrictLayer,
+  ZoneLayer,
+} from "./MapLayers";
+import { bufferHull, convexHull, type LonLat } from "@/lib/convexHull";
 import { DistrictInspectorCard, MapLegend, metricValue } from "./MapInspectorPanel";
 import {
   BIKE_ACCIDENT_YEAR_MAX,
@@ -41,6 +49,7 @@ export function MapView({
   showBikeRoads = false,
   bikeAccidentYearRange = [BIKE_ACCIDENT_YEAR_MIN, BIKE_ACCIDENT_YEAR_MAX],
   visibleSeverities = DEFAULT_SEVERITY_FILTER,
+  focusBlackspot = null,
 }: {
   detailOpen?: boolean;
   /** 자치구 전체 색칠 지표 */
@@ -54,6 +63,8 @@ export function MapView({
   showBikeRoads?: boolean;
   bikeAccidentYearRange?: [number, number];
   visibleSeverities?: SeverityFilter;
+  /** 반복사고 지점(블랙스팟) 랭킹에서 선택된 도로 — 해당 사고들을 폴리곤으로 강조하고 확대 */
+  focusBlackspot?: { sgg?: string | null; sggs?: string[]; road: string } | null;
 }) {
   const mapRef = useRef<MapRef | null>(null);
   const { districtGeo, accidentGeo, childZoneGeo, elderlyZoneGeo, bikeRoadGeo, insights } =
@@ -70,6 +81,7 @@ export function MapView({
 
   const [cursor, setCursor] = useState("grab");
   const [iconsReady, setIconsReady] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
   const [inspectedSgg, setInspectedSgg] = useState<string | null>(null);
 
   const districtMetrics = useMemo(() => {
@@ -159,6 +171,79 @@ export function MapView({
       ),
     };
   }, [accidentGeoFiltered]);
+
+  const blackspotPolygonGeo = useMemo((): GeoJSON.FeatureCollection | null => {
+    if (!focusBlackspot || !accidentGeo) return null;
+    const allowed =
+      focusBlackspot.sggs && focusBlackspot.sggs.length > 0
+        ? new Set(focusBlackspot.sggs)
+        : focusBlackspot.sgg
+          ? new Set([focusBlackspot.sgg])
+          : null;
+    const points: LonLat[] = accidentGeo.features
+      .filter((f) => {
+        if (f.properties?.accidentType !== "자전거") return false;
+        if (f.properties?.road !== focusBlackspot.road) return false;
+        if (!allowed) return true;
+        return allowed.has(String(f.properties?.sgg ?? ""));
+      })
+      .map((f) => (f.geometry as GeoJSON.Point).coordinates as LonLat);
+    if (points.length < 3) return null;
+
+    // 긴 도로(예: 올림픽대로)는 사고가 전체 구간에 흩어져 있어 전체를 감싸면 도시 전체를 덮는
+    // 얇은 폴리곤이 되어버림 — 가장 밀집된 반경 1km 내 점들만 골라서 그 지점을 강조
+    const NEAR_DEG = 0.01; // 대략 1km
+    let bestIdx = 0;
+    let bestCount = -1;
+    points.forEach((p, i) => {
+      const count = points.filter(
+        (q) => Math.hypot(p[0] - q[0], p[1] - q[1]) <= NEAR_DEG
+      ).length;
+      if (count > bestCount) {
+        bestCount = count;
+        bestIdx = i;
+      }
+    });
+    const center = points[bestIdx];
+    const cluster = points.filter(
+      (p) => Math.hypot(p[0] - center[0], p[1] - center[1]) <= NEAR_DEG
+    );
+    const hull = bufferHull(convexHull(cluster.length >= 3 ? cluster : points));
+    return {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "Polygon", coordinates: [[...hull, hull[0]]] },
+        },
+      ],
+    };
+  }, [accidentGeo, focusBlackspot]);
+
+  useEffect(() => {
+    if (!blackspotPolygonGeo) return;
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const coords = (blackspotPolygonGeo.features[0].geometry as GeoJSON.Polygon).coordinates[0];
+    let minLon = Infinity;
+    let minLat = Infinity;
+    let maxLon = -Infinity;
+    let maxLat = -Infinity;
+    for (const [lon, lat] of coords) {
+      minLon = Math.min(minLon, lon);
+      maxLon = Math.max(maxLon, lon);
+      minLat = Math.min(minLat, lat);
+      maxLat = Math.max(maxLat, lat);
+    }
+    map.fitBounds(
+      [
+        [minLon, minLat],
+        [maxLon, maxLat],
+      ],
+      { padding: 80, duration: 700, maxZoom: 16 }
+    );
+  }, [blackspotPolygonGeo, mapReady]);
 
   const interactiveLayerIds = useMemo(() => {
     const ids = ["districts-fill", "accident-points", "bike-cluster-circles", "bike-unclustered-point"];
@@ -283,6 +368,7 @@ export function MapView({
         onLoad={async () => {
           const map = mapRef.current?.getMap();
           if (!map) return;
+          setMapReady(true);
           try {
             await ensureAccidentIcons(map);
             setIconsReady(true);
@@ -339,6 +425,8 @@ export function MapView({
         {otherAccidentGeo && iconsReady && (
           <AccidentLayer data={otherAccidentGeo} visible={otherAccidentGeo.features.length > 0} />
         )}
+
+        {blackspotPolygonGeo && <BlackspotPolygonLayer data={blackspotPolygonGeo} />}
 
         {hover && (
           <MapHoverPopup

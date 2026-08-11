@@ -29,9 +29,9 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" variant="inset" className="bg-gray-100">
-      <SidebarHeader className="px-4 py-4">
-        <span className="flex items-center gap-2 text-base font-semibold">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-rose-800 text-white">
+      <SidebarHeader className="px-3 py-3">
+        <span className="flex items-center gap-2 text-sm font-semibold">
+          <span className="flex size-7 items-center justify-center rounded-lg bg-rose-800 text-xs text-white">
             안
           </span>
           교통안전 공백
@@ -39,7 +39,7 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent className="px-2">
         <SidebarGroup>
-          <SidebarGroupLabel className="text-sm text-gray-400">메뉴</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-xs text-gray-400">메뉴</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="gap-1">
               {NAV_ITEMS.map((item) =>
@@ -47,11 +47,11 @@ export function AppSidebar() {
                   <SidebarMenuItem key={item.href}>
                     <div
                       data-active={pathname === item.href}
-                      className="hover:bg-accent hover:text-accent-foreground data-[active=true]:bg-gray-200 data-[active=true]:font-medium relative flex h-11 items-center gap-2.5 rounded-lg text-base [&_svg]:size-5"
+                      className="hover:bg-accent hover:text-accent-foreground data-[active=true]:bg-gray-200 data-[active=true]:font-medium relative flex h-9 items-center gap-2 rounded-lg text-sm [&_svg]:size-4"
                     >
                       <Link
                         href={item.href}
-                        className="flex h-full min-w-0 flex-1 items-center gap-2.5 pl-2"
+                        className="flex h-full min-w-0 flex-1 items-center gap-2 pl-2"
                       >
                         <item.icon />
                         <span>{item.label}</span>
@@ -71,7 +71,7 @@ export function AppSidebar() {
                       id="map-sidebar-panel-slot"
                       className={
                         onMap && filterOpen
-                          ? "ml-4 mt-2 flex min-h-0 flex-col border-l border-gray-300 pt-1 pl-3 group-data-[collapsible=icon]:hidden"
+                          ? "ml-3.5 mt-1.5 flex min-h-0 flex-col border-l border-gray-300 pt-1 pl-2.5 group-data-[collapsible=icon]:hidden"
                           : "hidden"
                       }
                     />
@@ -82,7 +82,7 @@ export function AppSidebar() {
                       asChild
                       isActive={pathname === item.href}
                       tooltip={item.label}
-                      className="h-11 rounded-lg text-base data-[active=true]:bg-gray-200 data-[active=true]:font-medium [&_svg]:size-5"
+                      className="h-9 rounded-lg text-sm data-[active=true]:bg-gray-200 data-[active=true]:font-medium [&_svg]:size-4"
                     >
                       <Link href={item.href}>
                         <item.icon />

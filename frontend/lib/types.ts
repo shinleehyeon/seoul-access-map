@@ -8,6 +8,15 @@ export interface BikeInsightBucket {
   seriousRate: number;
 }
 
+export type BikeBlackspotRow = {
+  sgg: string;
+  road: string;
+  n: number;
+  deaths: number;
+  fatalityPer1000: number;
+  seriousRate: number;
+};
+
 export interface BikeInsightSlice {
   total: number;
   deaths: number;
@@ -36,9 +45,19 @@ export interface BikeInsightSlice {
     fatalityPer1000: number;
     seriousRate: number;
   }>;
+  dayHour: Array<{
+    day: string;
+    hour: number;
+    n: number;
+    deaths: number;
+    fatalityPer1000: number;
+    seriousRate: number;
+  }>;
   seasons: BikeInsightBucket[];
   months: Array<{ month: number; n: number }>;
   bikeRoadCompare: BikeInsightBucket[];
+  /** 기간·구 슬라이스별 블랙스팟 (없을 수 있음) */
+  blackspots?: BikeBlackspotRow[];
 }
 
 export type BikeDistrictRow = {
@@ -78,6 +97,7 @@ export interface BikeAccidentInsights extends Omit<BikeInsightSlice, "total" | "
     victimTotal?: number;
   };
   districts: BikeDistrictRow[];
+  blackspots: BikeBlackspotRow[];
   bySgg: Record<string, BikeInsightSlice>;
   byYear: Record<string, BikeYearBundle>;
 }

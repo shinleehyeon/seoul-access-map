@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
 import {
   DEFAULT_SEVERITY_FILTER,
   DEFAULT_TYPES,
@@ -79,6 +80,19 @@ export function Dashboard() {
 
   const panel = <FilterSidebar districts={SEOUL_DISTRICTS} filters={filters} onChange={setFilters} />;
 
+  const searchParams = useSearchParams();
+  const bsgg = searchParams.get("bsgg");
+  const bsggs = searchParams.get("bsggs");
+  const broad = searchParams.get("broad");
+  const focusBlackspot =
+    broad && (bsgg || bsggs)
+      ? {
+          road: broad,
+          sgg: bsgg,
+          sggs: bsggs?.split(",").map((s) => s.trim()).filter(Boolean),
+        }
+      : null;
+
   return (
     <div className="relative flex h-full min-h-0">
       <div className="relative min-w-0 flex-1">
@@ -91,6 +105,7 @@ export function Dashboard() {
           showBikeRoads={filters.showBikeRoads}
           bikeAccidentYearRange={filters.yearRange}
           visibleSeverities={filters.severities}
+          focusBlackspot={focusBlackspot}
         />
       </div>
 

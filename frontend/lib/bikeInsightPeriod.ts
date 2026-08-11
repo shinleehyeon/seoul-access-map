@@ -1,5 +1,6 @@
 import type {
   BikeAccidentInsights,
+  BikeBlackspotRow,
   BikeDistrictRow,
   BikeInsightBucket,
   BikeInsightSlice,
@@ -14,6 +15,7 @@ export type PeriodRange =
   | { kind: "range"; start: YearMonth; end: YearMonth };
 
 const HEAVY = new Set(["화물", "승합", "건설기계"]);
+const DAYS = ["월", "화", "수", "목", "금", "토", "일"];
 
 export function ymKey(ym: YearMonth): number {
   return ym.year * 12 + ym.month;
@@ -76,6 +78,7 @@ function citySlice(insights: BikeAccidentInsights): BikeInsightSlice {
     ages: insights.ages,
     violations: insights.violations,
     hours: insights.hours,
+    dayHour: insights.dayHour,
     seasons: insights.seasons,
     months: insights.months,
     bikeRoadCompare: insights.bikeRoadCompare,
@@ -162,6 +165,38 @@ function mergeHours(
   });
 }
 
+function mergeDayHour(
+  lists: BikeInsightSlice["dayHour"][]
+): BikeInsightSlice["dayHour"] {
+  const key = (d: string, h: number) => `${d}:${h}`;
+  const byCell = new Map<string, { n: number; deaths: number; severe: number }>();
+  for (const list of lists) {
+    for (const c of list) {
+      const k = key(c.day, c.hour);
+      const prev = byCell.get(k) ?? { n: 0, deaths: 0, severe: 0 };
+      prev.n += c.n;
+      prev.deaths += c.deaths;
+      prev.severe += (c.seriousRate / 100) * c.n;
+      byCell.set(k, prev);
+    }
+  }
+  const out: BikeInsightSlice["dayHour"] = [];
+  for (const day of DAYS) {
+    for (let hour = 0; hour < 24; hour++) {
+      const v = byCell.get(key(day, hour)) ?? { n: 0, deaths: 0, severe: 0 };
+      out.push({
+        day,
+        hour,
+        n: v.n,
+        deaths: v.deaths,
+        fatalityPer1000: v.n ? Math.round((v.deaths / v.n) * 1000 * 100) / 100 : 0,
+        seriousRate: v.n ? Math.round((v.severe / v.n) * 1000) / 10 : 0,
+      });
+    }
+  }
+  return out;
+}
+
 function mergeMonths(lists: BikeInsightSlice["months"][]): BikeInsightSlice["months"] {
   const counts = Array.from({ length: 12 }, () => 0);
   for (const list of lists) {
@@ -185,6 +220,7 @@ function mergeSlices(slices: BikeInsightSlice[]): BikeInsightSlice | null {
   const seasons = mergeBuckets(slices.map((s) => s.seasons));
   const bikeRoadCompare = mergeBuckets(slices.map((s) => s.bikeRoadCompare));
   const hours = mergeHours(slices.map((s) => s.hours));
+  const dayHour = mergeDayHour(slices.map((s) => s.dayHour));
   const months = mergeMonths(slices.map((s) => s.months));
 
   const heavy = opponents.filter((o) => HEAVY.has(o.key));
@@ -225,6 +261,7 @@ function mergeSlices(slices: BikeInsightSlice[]): BikeInsightSlice | null {
     ages,
     violations,
     hours,
+    dayHour,
     seasons,
     months,
     bikeRoadCompare,
@@ -367,6 +404,94 @@ export function resolvePeriodDistricts(
     )
     .filter((d): d is BikeDistrictRow[] => Boolean(d));
   return lists.length ? mergeDistricts(lists) : insights.districts;
+}
+
+function mergeBlackspots(lists: BikeBlackspotRow[][], topN = 30): BikeBlackspotRow[] {
+  const map = new Map<
+    string,
+    { sgg: string; road: string; n: number; deaths: number; severe: number }
+  >();
+  for (const list of lists) {
+    for (const b of list) {
+      const key = `${b.sgg}|${b.road}`;
+      const prev = map.get(key) ?? { sgg: b.sgg, road: b.road, n: 0, deaths: 0, severe: 0 };
+      prev.n += b.n;
+      prev.deaths += b.deaths;
+      prev.severe += (b.seriousRate / 100) * b.n;
+      map.set(key, prev);
+    }
+  }
+  return [...map.values()]
+    .map((v) => ({
+      sgg: v.sgg,
+      road: v.road,
+      n: v.n,
+      deaths: v.deaths,
+      fatalityPer1000: v.n ? Math.round((v.deaths / v.n) * 1000 * 100) / 100 : 0,
+      seriousRate: v.n ? Math.round((v.severe / v.n) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.n - a.n || b.fatalityPer1000 - a.fatalityPer1000)
+    .slice(0, topN);
+}
+
+function pickBlackspots(
+  bundle: { blackspots?: BikeBlackspotRow[]; bySgg?: Record<string, BikeInsightSlice> } | null | undefined,
+  sgg: string
+): BikeBlackspotRow[] {
+  if (!bundle) return [];
+  if (sgg === "all") return bundle.blackspots ?? [];
+  return bundle.bySgg?.[sgg]?.blackspots ?? (bundle.blackspots ?? []).filter((b) => b.sgg === sgg);
+}
+
+/** 기간·자치구 필터에 맞는 블랙스팟 */
+export function resolvePeriodBlackspots(
+  insights: BikeAccidentInsights,
+  period: PeriodRange,
+  sgg: string
+): BikeBlackspotRow[] {
+  if (period.kind === "all" || isFullDatasetRange(period, insights.meta.yearList ?? [])) {
+    if (sgg === "all") return insights.blackspots;
+    return insights.bySgg?.[sgg]?.blackspots ?? insights.blackspots.filter((b) => b.sgg === sgg);
+  }
+
+  const { start, end } = period;
+  const singleFullYear =
+    start.year === end.year && start.month === 1 && end.month === 12;
+  const singleMonth = start.year === end.year && start.month === end.month;
+
+  if (singleFullYear) {
+    const yearly = insights.byYear?.[String(start.year)];
+    const list = pickBlackspots(yearly, sgg);
+    return list.length ? list.slice(0, 30) : [];
+  }
+
+  if (singleMonth) {
+    const month = insights.byYear?.[String(start.year)]?.byMonth?.[String(start.month)];
+    return pickBlackspots(month, sgg).slice(0, 30);
+  }
+
+  // 여러 달·여러 해 → 월 단위 블랙스팟 합산
+  const lists = listMonthsInRange(start, end)
+    .map((ym) =>
+      pickBlackspots(insights.byYear?.[String(ym.year)]?.byMonth?.[String(ym.month)], sgg)
+    )
+    .filter((list) => list.length > 0);
+
+  if (lists.length) return mergeBlackspots(lists, 30);
+
+  // 월 번들이 없으면 연 단위로 합산
+  if (start.month === 1 && end.month === 12 && start.year < end.year) {
+    const yearLists: BikeBlackspotRow[][] = [];
+    for (let y = start.year; y <= end.year; y++) {
+      const list = pickBlackspots(insights.byYear?.[String(y)], sgg);
+      if (list.length) yearLists.push(list);
+    }
+    if (yearLists.length) return mergeBlackspots(yearLists, 30);
+  }
+
+  return sgg === "all"
+    ? insights.blackspots
+    : insights.blackspots.filter((b) => b.sgg === sgg);
 }
 
 export function isFullPeriod(period: PeriodRange, yearList: string[]): boolean {

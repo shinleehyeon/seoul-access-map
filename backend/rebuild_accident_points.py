@@ -66,6 +66,7 @@ def build_bike_features(df: pd.DataFrame) -> list[dict]:
                 "properties": {
                     "sgg": sgg_of(row["법정동명"]),
                     "name": f"{row['법정동명']} {location}".strip(),
+                    "road": row["도로명"] if isinstance(row["도로명"], str) and row["도로명"].strip() else None,
                     "accidentType": "자전거",
                     "bikeRole": role,
                     "accidentCount": 1,

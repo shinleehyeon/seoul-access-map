@@ -194,3 +194,22 @@ export function BikeAccidentClusterLayer({
     </Source>
   );
 }
+
+/** 반복사고 지점(블랙스팟) 클릭 시 해당 도로 사고들을 감싸는 볼록껍질 폴리곤 강조 */
+export function BlackspotPolygonLayer({ data }: { data: GeoJSON.FeatureCollection | null }) {
+  if (!data) return null;
+  return (
+    <Source id="blackspot-polygon" type="geojson" data={data}>
+      <Layer
+        id="blackspot-polygon-fill"
+        type="fill"
+        paint={{ "fill-color": "#e11d48", "fill-opacity": 0.15 }}
+      />
+      <Layer
+        id="blackspot-polygon-outline"
+        type="line"
+        paint={{ "line-color": "#e11d48", "line-width": 2, "line-dasharray": [2, 1.5] }}
+      />
+    </Source>
+  );
+}

@@ -19,19 +19,21 @@ export function HourVolumeFatalityChart({
 }: {
   hours: BikeAccidentInsights["hours"];
 }) {
+  const volumeColor = CHART.series[0]; // soft green
+  const fatalityColor = CHART.series[4]; // soft red
   const rows = [...hours].sort((a, b) => a.hour - b.hour);
   return (
     <div className="w-full">
       <ChartLegend
         items={[
-          { color: CHART.count, label: "사고 건수" },
-          { color: CHART.fatality, label: "치사율 (/1000건)" },
+          { color: volumeColor, label: "사고 건수" },
+          { color: fatalityColor, label: "치사율 (/1000건)" },
         ]}
       />
       <div className="h-56 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART.grid} />
             <XAxis dataKey="hour" fontSize={10} tickLine={false} interval={2} />
             <YAxis yAxisId="count" fontSize={11} tickLine={false} width={28} />
             <YAxis yAxisId="fatality" orientation="right" fontSize={11} tickLine={false} width={28} />
@@ -55,9 +57,9 @@ export function HourVolumeFatalityChart({
               yAxisId="count"
               type="monotone"
               dataKey="n"
-              stroke={CHART.count}
+              stroke={volumeColor}
               strokeWidth={2}
-              dot={{ r: 3, fill: CHART.count }}
+              dot={{ r: 3, fill: volumeColor }}
               activeDot={{ r: 5 }}
              
             />
@@ -65,9 +67,9 @@ export function HourVolumeFatalityChart({
               yAxisId="fatality"
               type="monotone"
               dataKey="fatalityPer1000"
-              stroke={CHART.fatality}
+              stroke={fatalityColor}
               strokeWidth={2}
-              dot={{ r: 3, fill: CHART.fatality }}
+              dot={{ r: 3, fill: fatalityColor }}
               activeDot={{ r: 5 }}
              
             />
@@ -88,7 +90,7 @@ export function MonthVolumeChart({
     <div className="h-56 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={rows} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART.grid} />
           <XAxis dataKey="month" fontSize={10} tickLine={false} />
           <YAxis fontSize={11} tickLine={false} width={28} />
           <Tooltip
@@ -117,12 +119,12 @@ export function BikeRoadCompareChart({ data }: { data: BikeInsightBucket[] }) {
   const onShare = (on.n / total) * 100;
   const offShare = (off.n / total) * 100;
 
-  const onColor = CHART.bikeOn;
-  const offColor = CHART.bikeOff;
+  const onColor = CHART.series[0]; // soft green
+  const offColor = CHART.series[3]; // soft orange
 
   return (
-    <div className="space-y-4">
-      <div className="bg-muted/40 flex h-3 overflow-hidden rounded-full">
+    <div className="flex h-full min-h-0 flex-col gap-4 pt-1">
+      <div className="bg-muted/40 flex h-3 shrink-0 overflow-hidden rounded-full">
         <div
           className="h-full rounded-l-full"
           style={{ width: `${onShare}%`, background: onColor }}
@@ -134,7 +136,7 @@ export function BikeRoadCompareChart({ data }: { data: BikeInsightBucket[] }) {
           title={`전용도로 밖 ${offShare.toFixed(1)}%`}
         />
       </div>
-      <div className="text-muted-foreground flex justify-between text-sm">
+      <div className="text-muted-foreground flex shrink-0 justify-between text-sm">
         <span className="inline-flex items-center gap-1.5">
           <span className="size-2.5 rounded-sm" style={{ background: onColor }} />
           위 {onShare.toFixed(1)}%
@@ -145,7 +147,7 @@ export function BikeRoadCompareChart({ data }: { data: BikeInsightBucket[] }) {
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid min-h-0 flex-1 grid-cols-2 gap-3">
         <BikeRoadSideCard
           title="전용도로 위"
           accent={onColor}
@@ -183,7 +185,7 @@ function BikeRoadSideCard({
   serious: number;
 }) {
   return (
-    <div className="rounded-xl border p-3.5">
+    <div className="flex h-full flex-col rounded-xl border p-3.5">
       <p className="flex items-center gap-1.5 text-base font-medium">
         <span className="size-2.5 rounded-sm" style={{ background: accent }} />
         {title}
@@ -193,16 +195,16 @@ function BikeRoadSideCard({
         <span className="text-muted-foreground ml-1 text-base font-medium">건</span>
       </p>
       <p className="text-muted-foreground mt-1 text-sm">사망 {deaths}명</p>
-      <div className="mt-3 space-y-2 border-t pt-3 text-sm">
+      <div className="mt-auto space-y-2 border-t pt-3 text-sm">
         <div className="flex justify-between gap-2">
           <span className="text-muted-foreground">치사율</span>
-          <span className="font-medium tabular-nums" style={{ color: CHART.fatality }}>
+          <span className="font-medium tabular-nums" style={{ color: CHART.series[4] }}>
             {fatality.toFixed(1)} /1000
           </span>
         </div>
         <div className="flex justify-between gap-2">
           <span className="text-muted-foreground">심각률</span>
-          <span className="font-medium tabular-nums" style={{ color: CHART.serious }}>
+          <span className="font-medium tabular-nums" style={{ color: CHART.series[2] }}>
             {serious.toFixed(1)}%
           </span>
         </div>

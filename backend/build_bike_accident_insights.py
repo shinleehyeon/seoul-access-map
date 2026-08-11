@@ -19,10 +19,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CSV_PATH = ROOT / "data" / "raw_bike_accident" / "서울_자전거사고_TAAS.csv"
 ACCIDENT_POINTS = ROOT / "frontend" / "public" / "data" / "accident_points.json"
+DISTRICTS_PATH = ROOT / "frontend" / "public" / "data" / "seoul_districts.json"
 OUT_PATH = ROOT / "frontend" / "public" / "data" / "bike_accident_insights.json"
 
 HEAVY = ("화물", "승합", "건설기계")
 SEASONS = ["봄", "여름", "가을", "겨울"]
+DAYS = ["월", "화", "수", "목", "금", "토", "일"]
+
+
+def day_of(row: dict) -> str:
+    raw = (row.get("요일") or "").strip()
+    for d in DAYS:
+        if raw.startswith(d):
+            return d
+    return "?"
 
 
 def gi(row: dict, key: str) -> int:
@@ -42,6 +52,7 @@ def road_group(road: str) -> str:
 
 
 def gu_of(row: dict) -> str:
+    """법정동명 문자열에서 자치구 추출 (공간조인 실패 시 폴백)."""
     parts = (row.get("법정동명") or "").split()
     return parts[1] if len(parts) >= 2 else "?"
 
@@ -100,6 +111,7 @@ def build_slice(
     opponent_min: int,
     age_min: int,
     violation_min: int,
+    include_day_hour: bool = True,
 ) -> dict:
     n = len(rows)
     total_deaths = sum(gi(r, "사망자수") for r in rows)
@@ -160,6 +172,35 @@ def build_slice(
                     "seriousRate": 0,
                 }
             )
+
+    day_hour = []
+    if include_day_hour:
+        dh_stats: dict[tuple[str, int], dict] = defaultdict(
+            lambda: {"n": 0, "deaths": 0, "severe": 0}
+        )
+        for r in rows:
+            d = day_of(r)
+            if d == "?":
+                continue
+            h = int(re.sub(r"\D", "", r.get("발생시각") or "0") or 0)
+            s = dh_stats[(d, h)]
+            s["n"] += 1
+            s["deaths"] += gi(r, "사망자수")
+            if r.get("사고내용") in ("사망사고", "중상사고"):
+                s["severe"] += 1
+        for d in DAYS:
+            for h in range(24):
+                s = dh_stats.get((d, h), {"n": 0, "deaths": 0, "severe": 0})
+                day_hour.append(
+                    {
+                        "day": d,
+                        "hour": h,
+                        "n": s["n"],
+                        "deaths": s["deaths"],
+                        "fatalityPer1000": round(s["deaths"] / s["n"] * 1000, 2) if s["n"] else 0,
+                        "seriousRate": round(s["severe"] / s["n"] * 100, 1) if s["n"] else 0,
+                    }
+                )
 
     season_stats = {s: {"n": 0, "deaths": 0, "severe": 0} for s in SEASONS}
     months = {m: 0 for m in range(1, 13)}
@@ -259,6 +300,7 @@ def build_slice(
         "ages": ages,
         "violations": violations,
         "hours": hours_full,
+        "dayHour": day_hour,
         "seasons": seasons,
         "months": month_series,
         "bikeRoadCompare": bike_road_compare,
@@ -318,6 +360,112 @@ def build_districts(rows: list[dict], *, min_n: int = 80) -> list[dict]:
     return districts
 
 
+def assign_road_districts(rows: list[dict]) -> list[str]:
+    """사고 좌표 → 자치구 폴리곤 공간조인. 도로 구간이 속한 행정구역.
+
+    반환 길이는 rows와 같고, 실패 시 법정동명 폴백 또는 '?'.
+    """
+    import geopandas as gpd
+    from shapely.geometry import Point
+
+    fallback = [gu_of(r) for r in rows]
+    if not DISTRICTS_PATH.exists():
+        return fallback
+
+    lons: list[float | None] = []
+    lats: list[float | None] = []
+    for r in rows:
+        try:
+            lons.append(float(r["경도"]))
+            lats.append(float(r["위도"]))
+        except (KeyError, TypeError, ValueError):
+            lons.append(None)
+            lats.append(None)
+
+    valid_idx = [i for i, (lo, la) in enumerate(zip(lons, lats)) if lo is not None and la is not None]
+    if not valid_idx:
+        return fallback
+
+    points = gpd.GeoDataFrame(
+        {"idx": valid_idx},
+        geometry=[Point(lons[i], lats[i]) for i in valid_idx],
+        crs="EPSG:4326",
+    )
+    districts = gpd.read_file(DISTRICTS_PATH).to_crs(epsg=4326)
+    name_col = "name" if "name" in districts.columns else districts.columns[0]
+    joined = gpd.sjoin(
+        points,
+        districts[[name_col, "geometry"]].rename(columns={name_col: "sgg"}),
+        how="left",
+        predicate="within",
+    )
+    # 경계선 위 점은 within 실패할 수 있어 intersects로 한 번 더
+    missing = joined["sgg"].isna()
+    if missing.any():
+        retry = gpd.sjoin(
+            points.loc[missing.values],
+            districts[[name_col, "geometry"]].rename(columns={name_col: "sgg"}),
+            how="left",
+            predicate="intersects",
+        )
+        joined.loc[missing, "sgg"] = retry["sgg"]
+
+    # 동일 점이 여러 구에 걸치면 첫 매칭만 사용
+    joined = joined.drop_duplicates(subset=["idx"], keep="first")
+    out = list(fallback)
+    for _, row in joined.iterrows():
+        sgg = row.get("sgg")
+        if isinstance(sgg, str) and sgg:
+            out[int(row["idx"])] = sgg
+    return out
+
+
+def build_blackspots(
+    rows: list[dict], *, top_n: int = 30, min_n: int = 3, quiet: bool = False
+) -> list[dict]:
+    """블랙스팟 구 = 사고 좌표가 속한 자치구(도로 구간 행정구역).
+
+    rows에 `_roadSgg`가 있으면 재사용하고, 없으면 공간조인 후 부착한다.
+    """
+    if rows and any("_roadSgg" not in r for r in rows):
+        for r, g in zip(rows, assign_road_districts(rows)):
+            r["_roadSgg"] = g
+
+    stats: dict[tuple[str, str], dict] = defaultdict(
+        lambda: {"n": 0, "deaths": 0, "severe": 0}
+    )
+
+    for r in rows:
+        road = (r.get("도로명") or "").strip()
+        g = (r.get("_roadSgg") or gu_of(r) or "?").strip()
+        if not road or g == "?":
+            continue
+        s = stats[(g, road)]
+        s["n"] += 1
+        s["deaths"] += gi(r, "사망자수")
+        if r.get("사고내용") in ("사망사고", "중상사고"):
+            s["severe"] += 1
+
+    out = []
+    for (g, road), s in stats.items():
+        if s["n"] < min_n:
+            continue
+        out.append(
+            {
+                "sgg": g,
+                "road": road,
+                "n": s["n"],
+                "deaths": s["deaths"],
+                "fatalityPer1000": round(s["deaths"] / s["n"] * 1000, 2),
+                "seriousRate": round(s["severe"] / s["n"] * 100, 1),
+            }
+        )
+    out.sort(key=lambda x: (-x["n"], -x["fatalityPer1000"]))
+    if not quiet:
+        print(f"blackspots: groups={len(out)} (showing top {top_n})")
+    return out[:top_n]
+
+
 def build_sgg_map(
     rows: list[dict],
     on_bike: dict[str, int],
@@ -326,6 +474,9 @@ def build_sgg_map(
     opponent_min: int,
     age_min: int,
     violation_min: int,
+    include_day_hour: bool = False,
+    blackspot_min_n: int = 2,
+    blackspot_top_n: int = 20,
 ) -> dict[str, dict]:
     by_sgg_rows: dict[str, list[dict]] = defaultdict(list)
     for r in rows:
@@ -336,13 +487,21 @@ def build_sgg_map(
     for g, sub in sorted(by_sgg_rows.items()):
         if len(sub) < min_rows:
             continue
-        out[g] = build_slice(
-            sub,
-            on_bike,
-            opponent_min=opponent_min,
-            age_min=age_min,
-            violation_min=violation_min,
-        )
+        # 블랙스팟 구는 도로 좌표 기준이므로 해당 구 폴리곤에 속한 사고만
+        road_sub = [r for r in rows if r.get("_roadSgg") == g]
+        out[g] = {
+            **build_slice(
+                sub,
+                on_bike,
+                opponent_min=opponent_min,
+                age_min=age_min,
+                violation_min=violation_min,
+                include_day_hour=include_day_hour,
+            ),
+            "blackspots": build_blackspots(
+                road_sub, top_n=blackspot_top_n, min_n=blackspot_min_n, quiet=True
+            ),
+        }
     return out
 
 
@@ -385,10 +544,16 @@ def main() -> None:
                 continue
             on_bike[str(acdnt)] = 1 if props.get("onBikeRoad") == 1 else 0
 
+    # 도로 구간 자치구를 한 번만 공간조인으로 부착 (블랙스팟·필터용)
+    print("assigning road districts…")
+    for r, g in zip(rows, assign_road_districts(rows)):
+        r["_roadSgg"] = g
+
     city = build_slice(rows, on_bike, opponent_min=30, age_min=30, violation_min=50)
     by_sgg = build_sgg_map(
         rows, on_bike, min_rows=30, opponent_min=5, age_min=5, violation_min=5
     )
+    city_blackspots = build_blackspots(rows, top_n=30, min_n=3)
 
     years = sorted({str(r.get("사고연도") or "") for r in rows if r.get("사고연도")})
     by_year: dict[str, dict] = {}
@@ -404,19 +569,45 @@ def main() -> None:
                 continue
             by_month[str(m)] = {
                 **build_slice(
-                    month_rows, on_bike, opponent_min=5, age_min=5, violation_min=5
+                    month_rows,
+                    on_bike,
+                    opponent_min=5,
+                    age_min=5,
+                    violation_min=5,
+                    include_day_hour=False,
                 ),
                 "bySgg": build_sgg_map(
-                    month_rows, on_bike, min_rows=5, opponent_min=2, age_min=2, violation_min=2
+                    month_rows,
+                    on_bike,
+                    min_rows=5,
+                    opponent_min=2,
+                    age_min=2,
+                    violation_min=2,
+                    include_day_hour=False,
+                    blackspot_min_n=2,
+                    blackspot_top_n=40,
                 ),
                 "districts": build_districts(month_rows, min_n=5),
+                # 월 단위는 합산용으로 넉넉히 보관
+                "blackspots": build_blackspots(
+                    month_rows, top_n=80, min_n=2, quiet=True
+                ),
             }
         by_year[year] = {
             **slice_,
             "bySgg": build_sgg_map(
-                year_rows, on_bike, min_rows=10, opponent_min=3, age_min=3, violation_min=3
+                year_rows,
+                on_bike,
+                min_rows=10,
+                opponent_min=3,
+                age_min=3,
+                violation_min=3,
+                include_day_hour=False,
+                blackspot_min_n=2,
+                blackspot_top_n=30,
             ),
             "districts": build_districts(year_rows, min_n=20),
+            "blackspots": build_blackspots(year_rows, top_n=50, min_n=2, quiet=True),
             "byMonth": by_month,
         }
 
@@ -443,10 +634,12 @@ def main() -> None:
         "ages": city["ages"],
         "violations": city["violations"],
         "hours": city["hours"],
+        "dayHour": city["dayHour"],
         "seasons": city["seasons"],
         "months": city["months"],
         "bikeRoadCompare": city["bikeRoadCompare"],
         "districts": build_districts(rows),
+        "blackspots": city_blackspots,
         "bySgg": by_sgg,
         "byYear": by_year,
     }

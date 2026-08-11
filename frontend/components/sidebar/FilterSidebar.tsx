@@ -104,7 +104,7 @@ export function FilterSidebar({
     CHOROPLETH_OPTIONS.find((s) => s.value === filters.choroplethMetric) ?? CHOROPLETH_OPTIONS[0];
 
   return (
-    <div className="flex flex-col gap-5 p-4">
+    <div className="flex min-w-0 flex-col gap-5 py-3 pr-1 pl-0">
       <div>
         <Label className="text-muted-foreground mb-2.5 text-xs font-semibold tracking-wide uppercase">
           표시
@@ -165,7 +165,7 @@ export function FilterSidebar({
         <Label className="text-muted-foreground mb-2.5 text-xs font-semibold tracking-wide uppercase">
           사고 연도
         </Label>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-col gap-1.5">
           <Select
             value={String(filters.yearRange[0])}
             onValueChange={(v) => {
@@ -176,7 +176,7 @@ export function FilterSidebar({
               });
             }}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="w-full min-w-0 px-2 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -187,7 +187,7 @@ export function FilterSidebar({
               ))}
             </SelectContent>
           </Select>
-          <span className="text-muted-foreground text-xs">~</span>
+          <span className="text-muted-foreground text-center text-xs">~</span>
           <Select
             value={String(filters.yearRange[1])}
             onValueChange={(v) => {
@@ -198,7 +198,7 @@ export function FilterSidebar({
               });
             }}
           >
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="w-full min-w-0 px-2 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

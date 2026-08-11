@@ -141,6 +141,7 @@ export function BikeAccidentClusterLayer({
       cluster={true}
       clusterMaxZoom={15}
       clusterRadius={45}
+      clusterMinPoints={3}
     >
       <Layer
         id="bike-cluster-circles"

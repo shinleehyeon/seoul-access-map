@@ -1,7 +1,7 @@
 import { HomeDashboardClient } from "@/components/HomeDashboardClient";
-import { getCrimeCctvStats } from "@/lib/data";
+import { getBikeAccidentInsights } from "@/lib/data";
 
 export default async function Home() {
-  const stats = await getCrimeCctvStats();
-  return <HomeDashboardClient stats={stats} />;
+  const insights = await getBikeAccidentInsights();
+  return <HomeDashboardClient insights={insights} />;
 }

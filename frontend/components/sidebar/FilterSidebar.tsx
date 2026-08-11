@@ -10,8 +10,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-/** 위험 상위 N개 구부터 자동 색칠 (0=없음, 25=전체) */
-export type GapFillStep = 0 | 1 | 3 | 5 | 10 | 25;
+/** 자치구 전체 색칠에 쓸 자전거 사고 지표 */
+export type ChoroplethMetric =
+  | "none"
+  | "accidents"
+  | "fatality"
+  | "seriousRate"
+  | "truckShare"
+  | "elderlyShare"
+  | "crossShare";
 
 export type AccidentTypeKey = "bike" | "elderly" | "child";
 
@@ -32,21 +39,33 @@ export interface FilterState {
   showElderlyZones: boolean;
   showBikeRoads: boolean;
   sgg: string;
-  gapFillStep: GapFillStep;
+  /** 선택 시 전 자치구를 해당 지표로 색칠 */
+  choroplethMetric: ChoroplethMetric;
   /** 자전거 사고 핀에 적용되는 연도 범위 (TAAS acdntYear 기준, [min, max] 포함) */
   yearRange: [number, number];
   /** 자전거 사고 핀에 적용되는 피해정도 필터. false인 분류는 지도에서 숨김 */
   severities: SeverityFilter;
 }
 
+export const CHOROPLETH_OPTIONS: { value: ChoroplethMetric; label: string; hint: string }[] = [
+  { value: "none", label: "색칠 안 함", hint: "" },
+  { value: "accidents", label: "사고 건수", hint: "TAAS 누적" },
+  { value: "fatality", label: "치사율", hint: "1,000건당 사망자 수" },
+  { value: "seriousRate", label: "심각사고율", hint: "사망+중상 사고 비율" },
+  { value: "truckShare", label: "대형차 비중", hint: "화물·승합·건설기계 상대 비중" },
+  { value: "elderlyShare", label: "고령 가해 비중", hint: "65세 이상 가해 당사자 비중" },
+  { value: "crossShare", label: "교차로 사고 비중", hint: "도로형태가 교차로인 비율" },
+];
+
+/** 어린이·노인 타입은 상태/맵 로직에 유지하되 UI에서는 숨기고 기본 off */
 export const DEFAULT_TYPES: AccidentTypeFilter = {
   bike: true,
-  elderly: true,
-  child: true,
+  elderly: false,
+  child: false,
 };
 
 export const BIKE_ACCIDENT_YEAR_MIN = 2020;
-export const BIKE_ACCIDENT_YEAR_MAX = 2024;
+export const BIKE_ACCIDENT_YEAR_MAX = 2025;
 
 export const DEFAULT_YEAR_RANGE: [number, number] = [
   BIKE_ACCIDENT_YEAR_MIN,
@@ -72,21 +91,6 @@ const SEVERITY_OPTIONS: { key: SeverityKey; label: string }[] = [
   { key: "부상신고사고", label: "부상신고사고" },
 ];
 
-const TYPE_OPTIONS: { key: AccidentTypeKey; label: string; hint: string }[] = [
-  { key: "bike", label: "자전거 사고", hint: "TAAS 개별 사고 지점" },
-  { key: "elderly", label: "보행노인 사고다발지점", hint: "고령 보행자 사고" },
-  { key: "child", label: "어린이 보행자 사고", hint: "TAAS 개별 사고 지점 (보호구역 내/외 색 구분)" },
-];
-
-const GAP_STEPS: { value: GapFillStep; label: string; hint: string }[] = [
-  { value: 0, label: "자동 색칠 안 함", hint: "" },
-  { value: 1, label: "1단계 · 위험 1위만", hint: "" },
-  { value: 3, label: "2단계 · 상위 3개", hint: "" },
-  { value: 5, label: "3단계 · 상위 5개", hint: "" },
-  { value: 10, label: "4단계 · 상위 10개", hint: "" },
-  { value: 25, label: "5단계 · 전체 구", hint: "" },
-];
-
 export function FilterSidebar({
   districts,
   filters,
@@ -96,74 +100,31 @@ export function FilterSidebar({
   filters: FilterState;
   onChange: (next: FilterState) => void;
 }) {
-  const stepMeta = GAP_STEPS.find((s) => s.value === filters.gapFillStep) ?? GAP_STEPS[0];
-  const selectedCount = TYPE_OPTIONS.filter((o) => filters.types[o.key]).length;
-
-  function toggleType(key: AccidentTypeKey, checked: boolean) {
-    onChange({
-      ...filters,
-      types: { ...filters.types, [key]: checked },
-    });
-  }
+  const choroplethMeta =
+    CHOROPLETH_OPTIONS.find((s) => s.value === filters.choroplethMetric) ?? CHOROPLETH_OPTIONS[0];
 
   return (
     <div className="flex flex-col gap-5 p-4">
       <div>
-        <div className="mb-2.5 flex items-center justify-between gap-2">
-          <Label className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-            사고 유형
-          </Label>
-          <span className="text-muted-foreground text-[11px]">{selectedCount}/3 선택</span>
-        </div>
-        <div className="flex flex-col gap-2.5 rounded-lg border px-3 py-3">
-          {TYPE_OPTIONS.map((opt) => (
-            <label
-              key={opt.key}
-              className="flex cursor-pointer items-start gap-2.5"
-              htmlFor={`type-${opt.key}`}
-            >
-              <Checkbox
-                id={`type-${opt.key}`}
-                checked={filters.types[opt.key]}
-                onCheckedChange={(v) => toggleType(opt.key, v === true)}
-                className="mt-0.5"
-              />
-              <span className="min-w-0">
-                <span className="block text-sm font-medium">{opt.label}</span>
-                <span className="text-muted-foreground text-xs">{opt.hint}</span>
-              </span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div>
         <Label className="text-muted-foreground mb-2.5 text-xs font-semibold tracking-wide uppercase">
-          보호구역
+          표시
         </Label>
         <div className="flex flex-col gap-2.5 rounded-lg border px-3 py-3">
-          <label className="flex cursor-pointer items-start gap-2.5" htmlFor="show-child-zones">
+          <label className="flex cursor-pointer items-start gap-2.5" htmlFor="type-bike">
             <Checkbox
-              id="show-child-zones"
-              checked={filters.showChildZones}
-              onCheckedChange={(v) => onChange({ ...filters, showChildZones: v === true })}
+              id="type-bike"
+              checked={filters.types.bike}
+              onCheckedChange={(v) =>
+                onChange({
+                  ...filters,
+                  types: { ...filters.types, bike: v === true },
+                })
+              }
               className="mt-0.5"
             />
             <span className="min-w-0">
-              <span className="block text-sm font-medium">어린이보호구역</span>
-              <span className="text-muted-foreground text-xs">학교·유치원·어린이집 등 스쿨존</span>
-            </span>
-          </label>
-          <label className="flex cursor-pointer items-start gap-2.5" htmlFor="show-elderly-zones">
-            <Checkbox
-              id="show-elderly-zones"
-              checked={filters.showElderlyZones}
-              onCheckedChange={(v) => onChange({ ...filters, showElderlyZones: v === true })}
-              className="mt-0.5"
-            />
-            <span className="min-w-0">
-              <span className="block text-sm font-medium">노인장애인보호구역</span>
-              <span className="text-muted-foreground text-xs">경로당·요양시설 등 보호구역</span>
+              <span className="block text-sm font-medium">자전거 사고 핀</span>
+              <span className="text-muted-foreground text-xs">TAAS 개별 사고 지점</span>
             </span>
           </label>
           <label className="flex cursor-pointer items-start gap-2.5" htmlFor="show-bike-roads">
@@ -202,7 +163,7 @@ export function FilterSidebar({
 
       <div>
         <Label className="text-muted-foreground mb-2.5 text-xs font-semibold tracking-wide uppercase">
-          사고 연도 (자전거·어린이)
+          사고 연도
         </Label>
         <div className="flex items-center gap-2">
           <Select
@@ -250,7 +211,7 @@ export function FilterSidebar({
           </Select>
         </div>
         <p className="text-muted-foreground mt-1.5 text-xs">
-          TAAS 개별 사고 데이터가 있는 2020~2024년 범위에서 선택 (피해정도 필터는 자전거에만 적용)
+          TAAS 자전거 사고 2020~2025년 범위 (피해정도 필터는 자전거에만 적용)
         </p>
 
         <Label className="text-muted-foreground mt-3 mb-2.5 block text-xs font-semibold tracking-wide uppercase">
@@ -284,24 +245,30 @@ export function FilterSidebar({
 
       <div>
         <Label className="text-muted-foreground mb-2.5 text-xs font-semibold tracking-wide uppercase">
-          위험 지역 채우기
+          자치구 색칠
+          {filters.yearRange[0] === filters.yearRange[1]
+            ? ` (${filters.yearRange[0]})`
+            : ` (${filters.yearRange[0]}–${filters.yearRange[1]})`}
         </Label>
         <Select
-          value={String(filters.gapFillStep)}
-          onValueChange={(v) => onChange({ ...filters, gapFillStep: Number(v) as GapFillStep })}
+          value={filters.choroplethMetric}
+          onValueChange={(v) => onChange({ ...filters, choroplethMetric: v as ChoroplethMetric })}
         >
           <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {GAP_STEPS.map((s) => (
-              <SelectItem key={s.value} value={String(s.value)}>
+            {CHOROPLETH_OPTIONS.map((s) => (
+              <SelectItem key={s.value} value={s.value}>
                 {s.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <p className="text-muted-foreground mt-1.5 text-xs">{stepMeta.hint}</p>
+        <p className="text-muted-foreground mt-1.5 text-xs">
+          {choroplethMeta.hint || "지표를 고르면 25개 구 전체가 그 값으로 색칠됩니다."} · 위 연도
+          범위 기준
+        </p>
       </div>
     </div>
   );

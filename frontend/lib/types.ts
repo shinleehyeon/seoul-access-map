@@ -1,3 +1,87 @@
+/** TAAS 자전거 가해 사고 인사이트 — bike_accident_insights.json */
+export interface BikeInsightBucket {
+  key: string;
+  n: number;
+  share: number;
+  deaths: number;
+  fatalityPer1000: number;
+  seriousRate: number;
+}
+
+export interface BikeInsightSlice {
+  total: number;
+  deaths: number;
+  headline: {
+    heavyVehicleAccidentShare: number;
+    heavyVehicleDeathShare: number;
+    elderlyAccidentShare: number;
+    elderlyDeathShare: number;
+    dawnAccidents: number;
+    dawnDeaths: number;
+    dawnFatalityPer1000: number;
+    bikeBikeSeriousRate: number;
+    pedestrianCount: number;
+    pedestrianSeriousRate: number;
+    sidewalkRidingShareOfPed: number;
+  };
+  roadTypes: BikeInsightBucket[];
+  opponents: BikeInsightBucket[];
+  ages: BikeInsightBucket[];
+  violations: BikeInsightBucket[];
+  hours: Array<{
+    hour: number;
+    label: string;
+    n: number;
+    deaths: number;
+    fatalityPer1000: number;
+    seriousRate: number;
+  }>;
+  seasons: BikeInsightBucket[];
+  months: Array<{ month: number; n: number }>;
+  bikeRoadCompare: BikeInsightBucket[];
+}
+
+export type BikeDistrictRow = {
+  sgg: string;
+  n: number;
+  deaths: number;
+  fatalityPer1000: number;
+  seriousRate: number;
+  pedShare: number;
+  bikeShare: number;
+  truckShare: number;
+  crossShare: number;
+  elderlyShare: number;
+};
+
+export type BikeMonthBundle = BikeInsightSlice & {
+  bySgg: Record<string, BikeInsightSlice>;
+  districts: BikeDistrictRow[];
+};
+
+export type BikeYearBundle = BikeInsightSlice & {
+  bySgg: Record<string, BikeInsightSlice>;
+  districts: BikeDistrictRow[];
+  byMonth: Record<string, BikeMonthBundle>;
+};
+
+export interface BikeAccidentInsights extends Omit<BikeInsightSlice, "total" | "deaths"> {
+  meta: {
+    source: string;
+    period: string;
+    total: number;
+    deaths: number;
+    sggList: string[];
+    yearList: string[];
+    role?: string;
+    perpetratorTotal?: number;
+    victimTotal?: number;
+  };
+  districts: BikeDistrictRow[];
+  bySgg: Record<string, BikeInsightSlice>;
+  byYear: Record<string, BikeYearBundle>;
+}
+
 /** 교통안전(자전거·어린이·노인) 자치구 통계 — crime_cctv_stats.json */
 export interface CrimeCctvStat {
   sgg: string;

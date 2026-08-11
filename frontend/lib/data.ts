@@ -1,7 +1,7 @@
 import "server-only";
 import fs from "fs/promises";
 import path from "path";
-import type { CrimeCctvStat } from "./types";
+import type { BikeAccidentInsights, CrimeCctvStat } from "./types";
 
 const DATA_DIR = path.join(process.cwd(), "public", "data");
 
@@ -16,4 +16,8 @@ async function readJson<T>(filename: string, fallback: T): Promise<T> {
 
 export async function getCrimeCctvStats(): Promise<CrimeCctvStat[]> {
   return readJson<CrimeCctvStat[]>("crime_cctv_stats.json", []);
+}
+
+export async function getBikeAccidentInsights(): Promise<BikeAccidentInsights | null> {
+  return readJson<BikeAccidentInsights | null>("bike_accident_insights.json", null);
 }

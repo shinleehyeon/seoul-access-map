@@ -4,14 +4,28 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MapGL, { NavigationControl, type MapLayerMouseEvent, type MapRef } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { setWorkerUrl } from "maplibre-gl";
-import type { CrimeCctvStat } from "@/lib/types";
-import { ACCIDENT_FILTER_KEY_BY_TYPE, ACCIDENT_ICON_BY_TYPE, BIKE_ACCIDENT_ICON_BY_SEVERITY, EMPTY_FC, MAP_STYLE, SEOUL_CENTER, ensureAccidentIcons } from "@/lib/mapConstants";
-import { gapFill } from "@/lib/color";
+import {
+  ACCIDENT_FILTER_KEY_BY_TYPE,
+  ACCIDENT_ICON_BY_TYPE,
+  BIKE_ACCIDENT_ICON_BY_SEVERITY,
+  EMPTY_FC,
+  MAP_STYLE,
+  SEOUL_CENTER,
+  ensureAccidentIcons,
+} from "@/lib/mapConstants";
+import { metricFill } from "@/lib/color";
+import { resolvePeriodDistricts } from "@/lib/bikeInsightPeriod";
 import { useMapData } from "./useMapData";
 import { AccidentDetailDialog, MapHoverPopup, useMapHover } from "./MapHoverPopup";
 import { AccidentLayer, BikeAccidentClusterLayer, BikeRoadLayer, DistrictLayer, ZoneLayer } from "./MapLayers";
-import { ColorModeTabs, DistrictInspectorCard, MapLegend, type ColorMode } from "./MapInspectorPanel";
-import { DEFAULT_SEVERITY_FILTER, type SeverityFilter } from "@/components/sidebar/FilterSidebar";
+import { DistrictInspectorCard, MapLegend, metricValue } from "./MapInspectorPanel";
+import {
+  BIKE_ACCIDENT_YEAR_MAX,
+  BIKE_ACCIDENT_YEAR_MIN,
+  DEFAULT_SEVERITY_FILTER,
+  type ChoroplethMetric,
+  type SeverityFilter,
+} from "@/components/sidebar/FilterSidebar";
 
 if (typeof window !== "undefined") {
   setWorkerUrl("/maplibre-gl-worker.mjs");
@@ -19,36 +33,30 @@ if (typeof window !== "undefined") {
 
 export function MapView({
   detailOpen = false,
-  gapFillStep = 0,
+  choroplethMetric = "none",
   focusSgg = null,
   visibleAccidentTypes = { bike: true, elderly: true, child: true },
   showChildZones = false,
   showElderlyZones = false,
   showBikeRoads = false,
-  bikeAccidentYearRange = [2020, 2024],
+  bikeAccidentYearRange = [BIKE_ACCIDENT_YEAR_MIN, BIKE_ACCIDENT_YEAR_MAX],
   visibleSeverities = DEFAULT_SEVERITY_FILTER,
 }: {
   detailOpen?: boolean;
-  /** 위험도 점수 높은 구부터 N개만 색칠 (0=없음) */
-  gapFillStep?: number;
+  /** 자치구 전체 색칠 지표 */
+  choroplethMetric?: ChoroplethMetric;
   /** 필터된 자치구 — 지도 포커스 */
   focusSgg?: string | null;
   /** 사고유형별 지도 핀 표시 여부 */
   visibleAccidentTypes?: { bike: boolean; elderly: boolean; child: boolean };
-  /** 어린이보호구역 표시 여부 */
   showChildZones?: boolean;
-  /** 노인장애인보호구역 표시 여부 */
   showElderlyZones?: boolean;
-  /** 자전거전용도로 표시 여부 */
   showBikeRoads?: boolean;
-  /** 자전거 사고 핀(acdntYear)에 적용되는 연도 범위 [min, max] 포함 */
   bikeAccidentYearRange?: [number, number];
-  /** true면 자전거 사망사고만 지도에 표시 */
-  /** 자전거 사고 핀(severity)에 적용되는 피해정도 필터. false인 값은 지도에서 숨김 */
   visibleSeverities?: SeverityFilter;
 }) {
   const mapRef = useRef<MapRef | null>(null);
-  const { districtGeo, accidentGeo, childZoneGeo, elderlyZoneGeo, bikeRoadGeo, crimeStats } =
+  const { districtGeo, accidentGeo, childZoneGeo, elderlyZoneGeo, bikeRoadGeo, insights } =
     useMapData();
   const {
     hover,
@@ -62,27 +70,43 @@ export function MapView({
 
   const [cursor, setCursor] = useState("grab");
   const [iconsReady, setIconsReady] = useState(false);
-  /** 지도에서 클릭해 색칠한 구 */
-  const [paintedSggs, setPaintedSggs] = useState<string[]>([]);
   const [inspectedSgg, setInspectedSgg] = useState<string | null>(null);
-  const [colorMode, setColorMode] = useState<ColorMode>(() => {
-    if (typeof window === "undefined") return "bike";
-    const saved = window.localStorage.getItem("map-color-mode");
-    return saved === "bike" || saved === "child" || saved === "elderly" ? saved : "bike";
-  });
 
-  useEffect(() => {
-    window.localStorage.setItem("map-color-mode", colorMode);
-  }, [colorMode]);
-
-  const scoreOf = (d: CrimeCctvStat) =>
-    colorMode === "bike" ? d.bikeScore : colorMode === "child" ? d.childScore : d.elderlyScore;
+  const districtMetrics = useMemo(() => {
+    if (!insights) return [];
+    const [from, to] = bikeAccidentYearRange;
+    return resolvePeriodDistricts(insights, {
+      kind: "range",
+      start: { year: from, month: 1 },
+      end: { year: to, month: 12 },
+    });
+  }, [insights, bikeAccidentYearRange]);
 
   const bySgg = useMemo(() => {
-    const m = new Map<string, CrimeCctvStat>();
-    for (const d of crimeStats) m.set(d.sgg, d);
+    const m = new Map(districtMetrics.map((d) => [d.sgg, d]));
     return m;
-  }, [crimeStats]);
+  }, [districtMetrics]);
+
+  const scale = useMemo(() => {
+    if (choroplethMetric === "none" || districtMetrics.length === 0) {
+      return { min: 0, max: 1 };
+    }
+    const values = districtMetrics.map((d) => metricValue(d, choroplethMetric));
+    return { min: Math.min(...values), max: Math.max(...values) };
+  }, [districtMetrics, choroplethMetric]);
+
+  const toneOf = useCallback(
+    (sgg: string) => {
+      if (choroplethMetric === "none") return 0;
+      const d = bySgg.get(sgg);
+      if (!d) return 0;
+      const v = metricValue(d, choroplethMetric);
+      const span = scale.max - scale.min;
+      if (span <= 0) return 0.5;
+      return (v - scale.min) / span;
+    },
+    [bySgg, choroplethMetric, scale]
+  );
 
   const accidentGeoFiltered = useMemo(() => {
     if (!accidentGeo) return null;
@@ -116,7 +140,6 @@ export function MapView({
     return { ...accidentGeo, features };
   }, [accidentGeo, focusSgg, visibleAccidentTypes, bikeAccidentYearRange, visibleSeverities]);
 
-  // 자전거 사고는 건수가 많아 클러스터 레이어로, 나머지(어린이/노인)는 개별 핀 레이어로 분리
   const bikeAccidentGeo = useMemo(() => {
     if (!accidentGeoFiltered) return null;
     return {
@@ -166,31 +189,20 @@ export function MapView({
     [bikeRoadGeo, showBikeRoads, filterBySgg]
   );
 
-  const autoHighlighted = useMemo(() => {
-    if (gapFillStep <= 0) return new Set<string>();
-    return new Set(
-      [...crimeStats]
-        .sort((a, b) => scoreOf(b) - scoreOf(a))
-        .slice(0, gapFillStep)
-        .map((d) => d.sgg)
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [crimeStats, gapFillStep, colorMode]);
-
-  const paintedSet = useMemo(() => new Set(paintedSggs), [paintedSggs]);
-
   const fillColorExpr = useMemo(() => {
     const expr: unknown[] = ["match", ["get", "name"]];
-    for (const d of crimeStats) {
-      const on = paintedSet.has(d.sgg) || autoHighlighted.has(d.sgg);
-      expr.push(d.sgg, on ? gapFill(scoreOf(d)) : "#e5e7eb");
+    if (choroplethMetric === "none") {
+      for (const d of districtMetrics) expr.push(d.sgg, "#e5e7eb");
+    } else {
+      for (const d of districtMetrics) {
+        expr.push(d.sgg, metricFill(toneOf(d.sgg)));
+      }
     }
     expr.push("#e5e7eb");
     return expr;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [crimeStats, paintedSet, autoHighlighted, colorMode]);
+  }, [districtMetrics, choroplethMetric, toneOf]);
 
-  const anyPainted = paintedSggs.length > 0 || gapFillStep > 0;
+  const anyPainted = choroplethMetric !== "none";
   const inspected = inspectedSgg ? (bySgg.get(inspectedSgg) ?? null) : null;
 
   useEffect(() => {
@@ -226,6 +238,7 @@ export function MapView({
       ],
       { padding: 48, duration: 700, maxZoom: 13 }
     );
+    setInspectedSgg(focusSgg);
   }, [focusSgg, districtGeo]);
 
   const onMouseMove = (e: MapLayerMouseEvent) => {
@@ -255,9 +268,7 @@ export function MapView({
     const district = e.features?.find((x) => x.layer.id === "districts-fill");
     const name = district?.properties?.name as string | undefined;
     if (!name) return;
-    const wasPainted = paintedSggs.includes(name);
-    setInspectedSgg(wasPainted ? null : name);
-    setPaintedSggs((prev) => (wasPainted ? prev.filter((s) => s !== name) : [...prev, name]));
+    setInspectedSgg((prev) => (prev === name ? null : name));
   };
 
   return (
@@ -326,10 +337,7 @@ export function MapView({
         )}
 
         {otherAccidentGeo && iconsReady && (
-          <AccidentLayer
-            data={otherAccidentGeo}
-            visible={otherAccidentGeo.features.length > 0}
-          />
+          <AccidentLayer data={otherAccidentGeo} visible={otherAccidentGeo.features.length > 0} />
         )}
 
         {hover && (
@@ -345,34 +353,12 @@ export function MapView({
       <AccidentDetailDialog detailAccident={detailAccident} onClose={closeDetail} />
 
       <div className="pointer-events-auto absolute bottom-4 left-4 flex max-w-[280px] flex-col gap-1.5 rounded-xl border bg-background/90 p-3 text-xs shadow-lg backdrop-blur-md">
-        <ColorModeTabs mode={colorMode} onChange={setColorMode} />
-
         {inspected && (
           <DistrictInspectorCard
             district={inspected}
-            colorMode={colorMode}
-            score={scoreOf(inspected)}
-            painted={paintedSet.has(inspected.sgg) || autoHighlighted.has(inspected.sgg)}
+            metric={choroplethMetric}
+            tone={toneOf(inspected.sgg)}
           />
-        )}
-
-        {paintedSggs.length > 0 && (
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground mt-0.5 text-left underline-offset-2 hover:underline"
-            onClick={() => {
-              setPaintedSggs([]);
-              setInspectedSgg(null);
-            }}
-          >
-            클릭 색칠 모두 지우기 ({paintedSggs.length})
-          </button>
-        )}
-
-        {gapFillStep > 0 && (
-          <div className="text-muted-foreground">
-            필터: 위험 상위 {Math.min(gapFillStep, 25)}개 구도 함께 표시 중
-          </div>
         )}
 
         <MapLegend />

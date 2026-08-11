@@ -17,7 +17,7 @@ const SEOUL_DISTRICTS = [
   "강북구", "도봉구", "노원구", "은평구", "서대문구", "마포구", "양천구", "강서구",
   "구로구", "금천구", "영등포구", "동작구", "관악구", "서초구", "강남구", "송파구",
   "강동구",
-];
+].sort((a, b) => a.localeCompare(b, "ko"));
 
 const MapView = dynamic(() => import("@/components/map/MapView").then((m) => m.MapView), {
   ssr: false,
@@ -34,7 +34,7 @@ const DEFAULT_FILTERS: FilterState = {
   showElderlyZones: false,
   showBikeRoads: false,
   sgg: "all",
-  gapFillStep: 0,
+  choroplethMetric: "none",
   yearRange: DEFAULT_YEAR_RANGE,
   severities: { ...DEFAULT_SEVERITY_FILTER },
 };
@@ -45,7 +45,23 @@ export function Dashboard() {
     try {
       const saved = window.localStorage.getItem("map-filters");
       if (!saved) return DEFAULT_FILTERS;
-      return { ...DEFAULT_FILTERS, ...JSON.parse(saved) };
+      const parsed = JSON.parse(saved) as Partial<FilterState> & { gapFillStep?: number };
+      // 예전 위험점수 단계 색칠 키 제거
+      const { gapFillStep: _legacy, ...rest } = parsed;
+      // 어린이·노인 UI는 숨기므로 저장된 값이 있어도 꺼 둔다 (코드/상태는 유지)
+      return {
+        ...DEFAULT_FILTERS,
+        ...rest,
+        types: {
+          ...DEFAULT_TYPES,
+          ...rest.types,
+          elderly: false,
+          child: false,
+          bike: rest.types?.bike ?? DEFAULT_TYPES.bike,
+        },
+        showChildZones: false,
+        showElderlyZones: false,
+      };
     } catch {
       return DEFAULT_FILTERS;
     }
@@ -84,7 +100,7 @@ export function Dashboard() {
     <div className="relative flex h-full min-h-0">
       <div className="relative min-w-0 flex-1">
         <MapView
-          gapFillStep={filters.gapFillStep}
+          choroplethMetric={filters.choroplethMetric}
           focusSgg={filters.sgg === "all" ? null : filters.sgg}
           visibleAccidentTypes={filters.types}
           showChildZones={filters.showChildZones}

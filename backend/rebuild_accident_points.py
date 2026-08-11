@@ -28,7 +28,7 @@ def sgg_of(legaldong_name: str) -> str:
 
 def detail_of(row: pd.Series) -> dict:
     """모달 '자세히 보기'에서 보여줄 부가 컬럼."""
-    return {
+    detail = {
         "사고월": row["사고월"],
         "요일": row["요일"],
         "주야구분": row["주야구분"],
@@ -41,6 +41,15 @@ def detail_of(row: pd.Series) -> dict:
         "기상상태": row["기상상태"],
         "도로형태": row["도로형태"],
     }
+    if "역할" in row.index and pd.notna(row.get("역할")):
+        detail["역할"] = row["역할"]
+    if "가해차종" in row.index and pd.notna(row.get("가해차종")):
+        detail["가해차종"] = row["가해차종"]
+    if "피해차종" in row.index and pd.notna(row.get("피해차종")):
+        detail["피해차종"] = row["피해차종"]
+    if "상대차종" in row.index and pd.notna(row.get("상대차종")):
+        detail["상대차종"] = row["상대차종"]
+    return detail
 
 
 def build_bike_features(df: pd.DataFrame) -> list[dict]:
@@ -50,6 +59,7 @@ def build_bike_features(df: pd.DataFrame) -> list[dict]:
         casualties = int(row["사망자수"]) + int(row["중상자수"]) + int(row["경상자수"]) + int(
             row["부상신고자수"]
         )
+        role = str(row["역할"]) if "역할" in row.index and pd.notna(row.get("역할")) else "가해"
         features.append(
             {
                 "type": "Feature",
@@ -57,6 +67,7 @@ def build_bike_features(df: pd.DataFrame) -> list[dict]:
                     "sgg": sgg_of(row["법정동명"]),
                     "name": f"{row['법정동명']} {location}".strip(),
                     "accidentType": "자전거",
+                    "bikeRole": role,
                     "accidentCount": 1,
                     "casualties": casualties,
                     "onBikeRoad": int(row["자전거도로인접"]),
@@ -116,6 +127,8 @@ def main() -> None:
     ]
 
     bike_df = pd.read_csv(BIKE_CSV)
+    if "역할" in bike_df.columns:
+        bike_df = bike_df[bike_df["역할"] == "피해"].copy()
     child_df = pd.read_csv(CHILD_CSV)
 
     bike_features = build_bike_features(bike_df)

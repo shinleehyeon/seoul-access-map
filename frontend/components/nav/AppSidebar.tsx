@@ -19,7 +19,7 @@ import {
 const NAV_ITEMS = [
   { href: "/", label: "대시보드", icon: LayoutDashboard },
   { href: "/map", label: "지도", icon: MapIcon },
-  { href: "/intervention", label: "해결 방안", icon: Lightbulb },
+  { href: "/intervention", label: "AI 인사이트", icon: Lightbulb },
 ];
 
 export function AppSidebar() {

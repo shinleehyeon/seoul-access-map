@@ -313,6 +313,8 @@ def build_districts(rows: list[dict], *, min_n: int = 80) -> list[dict]:
             "n": 0,
             "deaths": 0,
             "severe": 0,
+            "slight": 0,
+            "report": 0,
             "ped": 0,
             "bike": 0,
             "truck": 0,
@@ -325,8 +327,13 @@ def build_districts(rows: list[dict], *, min_n: int = 80) -> list[dict]:
         s = gu_stats[g]
         s["n"] += 1
         s["deaths"] += gi(r, "사망자수")
-        if r.get("사고내용") in ("사망사고", "중상사고"):
+        content = r.get("사고내용") or ""
+        if content in ("사망사고", "중상사고"):
             s["severe"] += 1
+        elif content == "경상사고":
+            s["slight"] += 1
+        elif content == "부상신고사고":
+            s["report"] += 1
         if r.get("상대차종") == "보행자":
             s["ped"] += 1
         if r.get("상대차종") == "자전거":
@@ -347,8 +354,11 @@ def build_districts(rows: list[dict], *, min_n: int = 80) -> list[dict]:
                 "sgg": g,
                 "n": s["n"],
                 "deaths": s["deaths"],
+                "slight": s["slight"],
+                "report": s["report"],
                 "fatalityPer1000": round(s["deaths"] / s["n"] * 1000, 2),
                 "seriousRate": round(s["severe"] / s["n"] * 100, 1),
+                "slightShare": round(s["slight"] / s["n"] * 100, 1),
                 "pedShare": round(s["ped"] / s["n"] * 100, 1),
                 "bikeShare": round(s["bike"] / s["n"] * 100, 1),
                 "truckShare": round(s["truck"] / s["n"] * 100, 1),

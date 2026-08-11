@@ -274,6 +274,8 @@ function mergeDistricts(lists: BikeDistrictRow[][]): BikeDistrictRow[] {
     {
       n: number;
       deaths: number;
+      slight: number;
+      report: number;
       severe: number;
       ped: number;
       bike: number;
@@ -287,6 +289,8 @@ function mergeDistricts(lists: BikeDistrictRow[][]): BikeDistrictRow[] {
       const prev = map.get(d.sgg) ?? {
         n: 0,
         deaths: 0,
+        slight: 0,
+        report: 0,
         severe: 0,
         ped: 0,
         bike: 0,
@@ -296,6 +300,8 @@ function mergeDistricts(lists: BikeDistrictRow[][]): BikeDistrictRow[] {
       };
       prev.n += d.n;
       prev.deaths += d.deaths;
+      prev.slight += d.slight ?? 0;
+      prev.report += d.report ?? 0;
       prev.severe += (d.seriousRate / 100) * d.n;
       prev.ped += (d.pedShare / 100) * d.n;
       prev.bike += (d.bikeShare / 100) * d.n;
@@ -310,8 +316,11 @@ function mergeDistricts(lists: BikeDistrictRow[][]): BikeDistrictRow[] {
       sgg,
       n: Math.round(v.n),
       deaths: v.deaths,
+      slight: Math.round(v.slight),
+      report: Math.round(v.report),
       fatalityPer1000: v.n ? Math.round((v.deaths / v.n) * 1000 * 100) / 100 : 0,
       seriousRate: v.n ? Math.round((v.severe / v.n) * 1000) / 10 : 0,
+      slightShare: v.n ? Math.round((v.slight / v.n) * 1000) / 10 : 0,
       pedShare: v.n ? Math.round((v.ped / v.n) * 1000) / 10 : 0,
       bikeShare: v.n ? Math.round((v.bike / v.n) * 1000) / 10 : 0,
       truckShare: v.n ? Math.round((v.truck / v.n) * 1000) / 10 : 0,

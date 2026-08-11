@@ -64,8 +64,13 @@ export type BikeDistrictRow = {
   sgg: string;
   n: number;
   deaths: number;
+  /** 경상사고 건수 (사고내용=경상사고) */
+  slight: number;
+  /** 부상신고사고 건수 */
+  report: number;
   fatalityPer1000: number;
   seriousRate: number;
+  slightShare: number;
   pedShare: number;
   bikeShare: number;
   truckShare: number;

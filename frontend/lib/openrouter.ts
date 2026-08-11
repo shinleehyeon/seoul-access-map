@@ -48,7 +48,7 @@ function openRouterHeaders(apiKey: string) {
 }
 
 function resolveModel() {
-  return process.env.OPENROUTER_MODEL || "anthropic/claude-haiku-4.5";
+  return process.env.OPENROUTER_MODEL || "google/gemini-3-flash-preview";
 }
 
 async function openRouterChat(

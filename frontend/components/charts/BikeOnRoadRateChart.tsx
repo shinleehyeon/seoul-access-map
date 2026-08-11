@@ -5,12 +5,19 @@ import type { CrimeCctvStat } from "@/lib/types";
 
 /** 자전거사고 다발지점 중 전용도로 50m 이내에서 발생한 비율 — 높을수록 도로 설계 문제,
  * 낮을수록 인프라 부재 문제로 원인을 구분한다. */
-export function BikeOnRoadRateChart({ stats }: { stats: CrimeCctvStat[] }) {
+export function BikeOnRoadRateChart({
+  stats,
+  highlightSgg,
+}: {
+  stats: CrimeCctvStat[];
+  highlightSgg?: string;
+}) {
   const data = [...stats]
     .filter((d) => d.bikeOnRoadRate != null && (d.bikeOnRoadSample ?? 0) > 0)
     .sort((a, b) => (b.bikeOnRoadRate ?? 0) - (a.bikeOnRoadRate ?? 0))
     .map((d) => ({
       sgg: d.sgg.replace(/구$/, ""),
+      full: d.sgg,
       rate: d.bikeOnRoadRate ?? 0,
       sample: d.bikeOnRoadSample ?? 0,
     }));
@@ -45,6 +52,8 @@ export function BikeOnRoadRateChart({ stats }: { stats: CrimeCctvStat[] }) {
               <Cell
                 key={d.sgg}
                 fill={d.rate >= 50 ? "#f97316" : "#38bdf8"}
+                stroke={d.full === highlightSgg ? "#111827" : "none"}
+                strokeWidth={d.full === highlightSgg ? 2 : 0}
               />
             ))}
           </Bar>

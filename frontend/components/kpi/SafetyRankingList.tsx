@@ -11,8 +11,19 @@ const RANK_STYLES = [
   "bg-gray-200 text-gray-700",
 ];
 
-export function SafetyRankingList({ stats, limit = 5 }: { stats: CrimeCctvStat[]; limit?: number }) {
-  const ranked = [...stats].sort((a, b) => b.gapScore - a.gapScore).slice(0, limit);
+export function SafetyRankingList({
+  stats,
+  limit = 5,
+  highlightSgg,
+}: {
+  stats: CrimeCctvStat[];
+  limit?: number;
+  highlightSgg?: string;
+}) {
+  const sorted = [...stats].sort((a, b) => b.gapScore - a.gapScore);
+  const top = sorted.slice(0, limit);
+  const highlighted = sorted.find((r) => r.sgg === highlightSgg);
+  const ranked = highlighted && !top.includes(highlighted) ? [...top.slice(0, limit - 1), highlighted] : top;
   const max = Math.max(...ranked.map((r) => r.gapScore), 1);
 
   return (
@@ -24,21 +35,26 @@ export function SafetyRankingList({ stats, limit = 5 }: { stats: CrimeCctvStat[]
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col divide-y divide-gray-100">
-        {ranked.map((r, i) => {
+        {ranked.map((r) => {
+          const rank = sorted.findIndex((s) => s.sgg === r.sgg);
           const widthPct = Math.max(8, (r.gapScore / max) * 100);
+          const isHighlighted = r.sgg === highlightSgg;
           return (
             <a
               key={r.sgg}
               href="/map"
-              className="flex w-full items-center gap-4 py-3 text-left transition-colors hover:bg-gray-50"
+              className={cn(
+                "flex w-full items-center gap-4 rounded-lg py-3 text-left transition-colors hover:bg-gray-50",
+                isHighlighted && "bg-amber-50 ring-1 ring-amber-300 hover:bg-amber-50"
+              )}
             >
               <span
                 className={cn(
                   "flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
-                  RANK_STYLES[i] ?? "bg-gray-200 text-gray-700"
+                  RANK_STYLES[rank] ?? "bg-gray-200 text-gray-700"
                 )}
               >
-                {i + 1}
+                {rank + 1}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-base font-medium text-gray-900">{r.sgg}</span>

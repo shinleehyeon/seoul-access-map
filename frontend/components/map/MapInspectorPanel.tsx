@@ -175,7 +175,7 @@ export function MapLegend() {
   return (
     <>
       <div className="mt-1 flex items-center gap-1.5">
-        <span className="inline-block size-2.5 shrink-0 rounded-sm border border-[#a16207] bg-[#eab308]/55" />
+        <span className="inline-block size-2.5 shrink-0 rounded-sm border border-[#a16207] bg-[#eab308]/40" />
         자전거전용도로
       </div>
       <div className="flex items-center gap-1.5">
@@ -186,20 +186,53 @@ export function MapLegend() {
         <span className="inline-block size-2.5 shrink-0 rounded-sm border border-[#5b21b6] bg-[#8b5cf6]/55" />
         노인장애인보호구역 (도로 연결)
       </div>
-      <div className="flex items-center gap-1.5">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/markers/pin-accident-bike.png" alt="" className="h-6 w-6 object-contain" />
-        자전거 사고다발지점
+
+      <p className="text-muted-foreground mt-1.5 text-[11px] font-semibold tracking-wide uppercase">
+        자전거 사고 (피해정도)
+      </p>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="flex items-center gap-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/markers/pin-accident-bike-fatal.png" alt="" className="h-5 w-5 object-contain" />
+          사망
+        </span>
+        <span className="flex items-center gap-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/markers/pin-accident-bike-severe.png" alt="" className="h-5 w-5 object-contain" />
+          중상
+        </span>
+        <span className="flex items-center gap-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/markers/pin-accident-bike-minor.png" alt="" className="h-5 w-5 object-contain" />
+          경상
+        </span>
+        <span className="flex items-center gap-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/markers/pin-accident-bike-report.png" alt="" className="h-5 w-5 object-contain" />
+          부상신고
+        </span>
       </div>
-      <div className="flex items-center gap-1.5">
+
+      <p className="text-muted-foreground mt-1.5 text-[11px] font-semibold tracking-wide uppercase">
+        어린이 보행자 사고
+      </p>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="flex items-center gap-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/markers/pin-accident-child.png" alt="" className="h-5 w-5 object-contain" />
+          보호구역 내
+        </span>
+        <span className="flex items-center gap-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/markers/pin-accident-child-outzone.png" alt="" className="h-5 w-5 object-contain" />
+          보호구역 밖
+        </span>
+      </div>
+
+      <div className="mt-1.5 flex items-center gap-1.5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/markers/pin-accident-elderly.png" alt="" className="h-7 w-7 object-contain" />
+        <img src="/markers/pin-accident-elderly.png" alt="" className="h-6 w-6 object-contain" />
         보행노인 사고다발지점
-      </div>
-      <div className="flex items-center gap-1.5">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/markers/pin-accident-child.png" alt="" className="h-6 w-6 object-contain" />
-        보행/스쿨존 어린이 사고다발지점
       </div>
     </>
   );

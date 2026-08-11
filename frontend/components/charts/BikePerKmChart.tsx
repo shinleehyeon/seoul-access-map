@@ -5,18 +5,28 @@ import type { CrimeCctvStat } from "@/lib/types";
 import { gapFill } from "@/lib/color";
 
 /** 자전거도로 1km당 사고 — 인프라 대비 밀도가 높은 구 */
-export function BikePerKmChart({ stats }: { stats: CrimeCctvStat[] }) {
-  const data = [...stats]
+export function BikePerKmChart({
+  stats,
+  highlightSgg,
+}: {
+  stats: CrimeCctvStat[];
+  highlightSgg?: string;
+}) {
+  const ranked = [...stats]
     .filter((d) => d.bikeRoadKm > 0)
-    .sort((a, b) => b.bikeAccidentPerRoadKm - a.bikeAccidentPerRoadKm)
-    .slice(0, 10)
-    .map((d) => ({
-      sgg: d.sgg.replace(/구$/, ""),
-      perKm: d.bikeAccidentPerRoadKm,
-      score: d.bikeScore,
-      accidents: d.bikeAccidentCount,
-      km: d.bikeRoadKm,
-    }));
+    .sort((a, b) => b.bikeAccidentPerRoadKm - a.bikeAccidentPerRoadKm);
+  const top10 = ranked.slice(0, 10);
+  const highlighted = ranked.find((d) => d.sgg === highlightSgg);
+  const rows = highlighted && !top10.includes(highlighted) ? [...top10.slice(0, 9), highlighted] : top10;
+
+  const data = rows.map((d) => ({
+    sgg: d.sgg.replace(/구$/, ""),
+    full: d.sgg,
+    perKm: d.bikeAccidentPerRoadKm,
+    score: d.bikeScore,
+    accidents: d.bikeAccidentCount,
+    km: d.bikeRoadKm,
+  }));
 
   if (data.length === 0) {
     return <p className="text-muted-foreground text-sm">데이터가 부족합니다.</p>;
@@ -45,7 +55,12 @@ export function BikePerKmChart({ stats }: { stats: CrimeCctvStat[] }) {
           />
           <Bar dataKey="perKm" radius={[0, 6, 6, 0]} isAnimationActive={false}>
             {data.map((d) => (
-              <Cell key={d.sgg} fill={gapFill(d.score)} />
+              <Cell
+                key={d.sgg}
+                fill={gapFill(d.score)}
+                stroke={d.full === highlightSgg ? "#111827" : "none"}
+                strokeWidth={d.full === highlightSgg ? 2 : 0}
+              />
             ))}
           </Bar>
         </BarChart>

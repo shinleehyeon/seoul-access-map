@@ -5,18 +5,28 @@ import type { CrimeCctvStat } from "@/lib/types";
 import { gapFill } from "@/lib/color";
 
 /** 어린이보호구역 100곳당 다발지점 — 구역 대비 사고가 많은 구 */
-export function ChildZoneRiskChart({ stats }: { stats: CrimeCctvStat[] }) {
-  const data = [...stats]
+export function ChildZoneRiskChart({
+  stats,
+  highlightSgg,
+}: {
+  stats: CrimeCctvStat[];
+  highlightSgg?: string;
+}) {
+  const ranked = [...stats]
     .filter((d) => d.childZoneCount > 0 && d.childAccidentPerZone > 0)
-    .sort((a, b) => b.childAccidentPerZone - a.childAccidentPerZone)
-    .slice(0, 10)
-    .map((d) => ({
-      sgg: d.sgg.replace(/구$/, ""),
-      perZone: d.childAccidentPerZone,
-      score: d.childScore,
-      zones: d.childZoneCount,
-      accidents: d.childAccidentCount,
-    }));
+    .sort((a, b) => b.childAccidentPerZone - a.childAccidentPerZone);
+  const top10 = ranked.slice(0, 10);
+  const highlighted = ranked.find((d) => d.sgg === highlightSgg);
+  const rows = highlighted && !top10.includes(highlighted) ? [...top10.slice(0, 9), highlighted] : top10;
+
+  const data = rows.map((d) => ({
+    sgg: d.sgg.replace(/구$/, ""),
+    full: d.sgg,
+    perZone: d.childAccidentPerZone,
+    score: d.childScore,
+    zones: d.childZoneCount,
+    accidents: d.childAccidentCount,
+  }));
 
   if (data.length === 0) {
     return <p className="text-muted-foreground text-sm">데이터가 부족합니다.</p>;
@@ -45,7 +55,12 @@ export function ChildZoneRiskChart({ stats }: { stats: CrimeCctvStat[] }) {
           />
           <Bar dataKey="perZone" radius={[0, 6, 6, 0]} isAnimationActive={false}>
             {data.map((d) => (
-              <Cell key={d.sgg} fill={gapFill(d.score)} />
+              <Cell
+                key={d.sgg}
+                fill={gapFill(d.score)}
+                stroke={d.full === highlightSgg ? "#111827" : "none"}
+                strokeWidth={d.full === highlightSgg ? 2 : 0}
+              />
             ))}
           </Bar>
         </BarChart>

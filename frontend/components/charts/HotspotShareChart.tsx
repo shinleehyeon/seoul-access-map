@@ -9,11 +9,18 @@ const COLORS = {
   elderly: "#a855f7",
 };
 
-/** 시 전체 다발지점 유형 비중 */
-export function HotspotShareChart({ stats }: { stats: CrimeCctvStat[] }) {
-  const bike = stats.reduce((s, d) => s + d.bikeHotspotCount, 0);
-  const child = stats.reduce((s, d) => s + d.childAccidentCount, 0);
-  const elderly = stats.reduce((s, d) => s + d.elderlyAccidentCount, 0);
+/** 다발지점 유형 비중 — 자치구 선택 시 해당 구, 아니면 시 전체 */
+export function HotspotShareChart({
+  stats,
+  highlightSgg,
+}: {
+  stats: CrimeCctvStat[];
+  highlightSgg?: string;
+}) {
+  const scoped = highlightSgg ? stats.filter((d) => d.sgg === highlightSgg) : stats;
+  const bike = scoped.reduce((s, d) => s + d.bikeHotspotCount, 0);
+  const child = scoped.reduce((s, d) => s + d.childHotspotCount, 0);
+  const elderly = scoped.reduce((s, d) => s + d.elderlyHotspotCount, 0);
   const total = bike + child + elderly;
 
   const data = [

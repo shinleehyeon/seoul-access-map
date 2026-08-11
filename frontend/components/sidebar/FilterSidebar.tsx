@@ -21,6 +21,11 @@ export interface AccidentTypeFilter {
   child: boolean;
 }
 
+/** TAAS 사고내용(피해정도) 4개 분류 */
+export type SeverityKey = "사망사고" | "중상사고" | "경상사고" | "부상신고사고";
+
+export type SeverityFilter = Record<SeverityKey, boolean>;
+
 export interface FilterState {
   types: AccidentTypeFilter;
   showChildZones: boolean;
@@ -28,6 +33,10 @@ export interface FilterState {
   showBikeRoads: boolean;
   sgg: string;
   gapFillStep: GapFillStep;
+  /** 자전거 사고 핀에 적용되는 연도 범위 (TAAS acdntYear 기준, [min, max] 포함) */
+  yearRange: [number, number];
+  /** 자전거 사고 핀에 적용되는 피해정도 필터. false인 분류는 지도에서 숨김 */
+  severities: SeverityFilter;
 }
 
 export const DEFAULT_TYPES: AccidentTypeFilter = {
@@ -36,10 +45,37 @@ export const DEFAULT_TYPES: AccidentTypeFilter = {
   child: true,
 };
 
+export const BIKE_ACCIDENT_YEAR_MIN = 2020;
+export const BIKE_ACCIDENT_YEAR_MAX = 2024;
+
+export const DEFAULT_YEAR_RANGE: [number, number] = [
+  BIKE_ACCIDENT_YEAR_MIN,
+  BIKE_ACCIDENT_YEAR_MAX,
+];
+
+const YEAR_OPTIONS = Array.from(
+  { length: BIKE_ACCIDENT_YEAR_MAX - BIKE_ACCIDENT_YEAR_MIN + 1 },
+  (_, i) => BIKE_ACCIDENT_YEAR_MIN + i
+);
+
+export const DEFAULT_SEVERITY_FILTER: SeverityFilter = {
+  사망사고: true,
+  중상사고: true,
+  경상사고: true,
+  부상신고사고: true,
+};
+
+const SEVERITY_OPTIONS: { key: SeverityKey; label: string }[] = [
+  { key: "사망사고", label: "사망사고" },
+  { key: "중상사고", label: "중상사고" },
+  { key: "경상사고", label: "경상사고" },
+  { key: "부상신고사고", label: "부상신고사고" },
+];
+
 const TYPE_OPTIONS: { key: AccidentTypeKey; label: string; hint: string }[] = [
-  { key: "bike", label: "자전거 사고다발지점", hint: "자전거 관련 사고" },
+  { key: "bike", label: "자전거 사고", hint: "TAAS 개별 사고 지점" },
   { key: "elderly", label: "보행노인 사고다발지점", hint: "고령 보행자 사고" },
-  { key: "child", label: "어린이 사고다발지점", hint: "보행어린이·스쿨존 사고" },
+  { key: "child", label: "어린이 보행자 사고", hint: "TAAS 개별 사고 지점 (보호구역 내/외 색 구분)" },
 ];
 
 const GAP_STEPS: { value: GapFillStep; label: string; hint: string }[] = [
@@ -162,6 +198,88 @@ export function FilterSidebar({
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      <div>
+        <Label className="text-muted-foreground mb-2.5 text-xs font-semibold tracking-wide uppercase">
+          사고 연도 (자전거·어린이)
+        </Label>
+        <div className="flex items-center gap-2">
+          <Select
+            value={String(filters.yearRange[0])}
+            onValueChange={(v) => {
+              const from = Number(v);
+              onChange({
+                ...filters,
+                yearRange: [from, Math.max(from, filters.yearRange[1])],
+              });
+            }}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {YEAR_OPTIONS.map((y) => (
+                <SelectItem key={y} value={String(y)}>
+                  {y}년
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className="text-muted-foreground text-xs">~</span>
+          <Select
+            value={String(filters.yearRange[1])}
+            onValueChange={(v) => {
+              const to = Number(v);
+              onChange({
+                ...filters,
+                yearRange: [Math.min(filters.yearRange[0], to), to],
+              });
+            }}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {YEAR_OPTIONS.map((y) => (
+                <SelectItem key={y} value={String(y)}>
+                  {y}년
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <p className="text-muted-foreground mt-1.5 text-xs">
+          TAAS 개별 사고 데이터가 있는 2020~2024년 범위에서 선택 (피해정도 필터는 자전거에만 적용)
+        </p>
+
+        <Label className="text-muted-foreground mt-3 mb-2.5 block text-xs font-semibold tracking-wide uppercase">
+          피해정도
+        </Label>
+        <div className="flex flex-col gap-2.5 rounded-lg border px-3 py-3">
+          {SEVERITY_OPTIONS.map((opt) => (
+            <label
+              key={opt.key}
+              className="flex cursor-pointer items-center gap-2.5"
+              htmlFor={`severity-${opt.key}`}
+            >
+              <Checkbox
+                id={`severity-${opt.key}`}
+                checked={filters.severities[opt.key]}
+                onCheckedChange={(v) =>
+                  onChange({
+                    ...filters,
+                    severities: { ...filters.severities, [opt.key]: v === true },
+                  })
+                }
+              />
+              <span className="text-sm font-medium">{opt.label}</span>
+            </label>
+          ))}
+        </div>
+        <p className="text-muted-foreground mt-1.5 text-xs">
+          사망사고 핀은 빨간색으로 강조 표시
+        </p>
       </div>
 
       <div>

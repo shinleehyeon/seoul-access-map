@@ -1,9 +1,15 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { SafetyKpiCards } from "@/components/kpi/SafetyKpiCards";
-import { SafetyInsightCards } from "@/components/kpi/SafetyInsightCards";
 import { SafetyRankingList } from "@/components/kpi/SafetyRankingList";
 import { BikeInfraScatterChart } from "@/components/charts/BikeInfraScatterChart";
 import { BikePerKmChart } from "@/components/charts/BikePerKmChart";
@@ -13,6 +19,18 @@ import { BikeOnRoadRateChart } from "@/components/charts/BikeOnRoadRateChart";
 import type { CrimeCctvStat } from "@/lib/types";
 
 export function HomeDashboardClient({ stats }: { stats: CrimeCctvStat[] }) {
+  const [sgg, setSgg] = useState<string>(() => {
+    if (typeof window === "undefined") return "all";
+    return window.localStorage.getItem("home-sgg-filter") ?? "all";
+  });
+
+  useEffect(() => {
+    window.localStorage.setItem("home-sgg-filter", sgg);
+  }, [sgg]);
+
+  const districts = [...stats].map((d) => d.sgg).sort();
+  const highlightSgg = sgg === "all" ? undefined : sgg;
+
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-4 md:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -23,20 +41,22 @@ export function HomeDashboardClient({ stats }: { stats: CrimeCctvStat[] }) {
             대비 사고가 많은 곳을 먼저 보세요.
           </p>
         </div>
-        <Button className="rounded-full" asChild>
-          <a href="/map">지도에서 살펴보기</a>
-        </Button>
+        <Select value={sgg} onValueChange={setSgg}>
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">전체 구</SelectItem>
+            {districts.map((d) => (
+              <SelectItem key={d} value={d}>
+                {d}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <SafetyKpiCards stats={stats} />
-
-      <section className="flex flex-col gap-3">
-        <div>
-          <h2 className="text-base font-semibold tracking-tight">어디에 공백이 큰가</h2>
-          <p className="text-muted-foreground text-xs">인프라 대비 사고 밀도가 가장 높은 구</p>
-        </div>
-        <SafetyInsightCards stats={stats} />
-      </section>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Card className="rounded-2xl border shadow-none xl:col-span-2">
@@ -44,13 +64,14 @@ export function HomeDashboardClient({ stats }: { stats: CrimeCctvStat[] }) {
             <CardTitle className="text-base font-medium">자전거도로 vs 사고</CardTitle>
             <CardDescription>
               가로축 도로 길이 · 세로축 사고 건수 · 점 크기·색은 위험점수
+              {highlightSgg ? ` · ${highlightSgg} 강조 표시` : ""}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <BikeInfraScatterChart stats={stats} />
+            <BikeInfraScatterChart stats={stats} highlightSgg={highlightSgg} />
           </CardContent>
         </Card>
-        <SafetyRankingList stats={stats} limit={5} />
+        <SafetyRankingList stats={stats} limit={5} highlightSgg={highlightSgg} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -60,16 +81,18 @@ export function HomeDashboardClient({ stats }: { stats: CrimeCctvStat[] }) {
             <CardDescription>전용도로가 있어도 사고가 몰리는 구 · Top 10</CardDescription>
           </CardHeader>
           <CardContent>
-            <BikePerKmChart stats={stats} />
+            <BikePerKmChart stats={stats} highlightSgg={highlightSgg} />
           </CardContent>
         </Card>
         <Card className="rounded-2xl border shadow-none">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-medium">다발지점 유형 비중</CardTitle>
-            <CardDescription>시 전체 자전거·어린이·노인 다발지점</CardDescription>
+            <CardDescription>
+              {highlightSgg ? `${highlightSgg} 자전거·어린이·노인 다발지점` : "시 전체 자전거·어린이·노인 다발지점"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <HotspotShareChart stats={stats} />
+            <HotspotShareChart stats={stats} highlightSgg={highlightSgg} />
           </CardContent>
         </Card>
       </div>
@@ -80,7 +103,7 @@ export function HomeDashboardClient({ stats }: { stats: CrimeCctvStat[] }) {
           <CardDescription>구역 100곳당 어린이 다발지점 · Top 10</CardDescription>
         </CardHeader>
         <CardContent>
-          <ChildZoneRiskChart stats={stats} />
+          <ChildZoneRiskChart stats={stats} highlightSgg={highlightSgg} />
         </CardContent>
       </Card>
 
@@ -93,14 +116,14 @@ export function HomeDashboardClient({ stats }: { stats: CrimeCctvStat[] }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <BikeOnRoadRateChart stats={stats} />
+          <BikeOnRoadRateChart stats={stats} highlightSgg={highlightSgg} />
         </CardContent>
       </Card>
 
       <p className="text-muted-foreground pb-4 text-xs leading-relaxed">
         산출: 자전거 위험은 도로 1km당 사고·인구 대비 사고·다발지점을 종합 · 어린이·노인은 보호구역
-        대비 다발지점 비중 · 온-인프라 비율은 사고 원인이 &ldquo;도로 설계&rdquo;인지 &ldquo;인프라 부재&rdquo;인지
-        구분하는 참고 지표입니다 · 지도에서 구역·도로·핀을 함께 확인할 수 있습니다.
+        대비 다발지점 비중 · 온-인프라 비율은 사고 원인이 &ldquo;도로 설계&rdquo;인지 &ldquo;인프라
+        부재&rdquo;인지 구분하는 참고 지표입니다 · 지도에서 구역·도로·핀을 함께 확인할 수 있습니다.
       </p>
     </div>
   );

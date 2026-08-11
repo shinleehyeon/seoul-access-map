@@ -5,7 +5,9 @@ import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import { ChevronDown } from "lucide-react";
 import {
+  DEFAULT_SEVERITY_FILTER,
   DEFAULT_TYPES,
+  DEFAULT_YEAR_RANGE,
   FilterSidebar,
   type FilterState,
 } from "@/components/sidebar/FilterSidebar";
@@ -33,6 +35,8 @@ const DEFAULT_FILTERS: FilterState = {
   showBikeRoads: false,
   sgg: "all",
   gapFillStep: 0,
+  yearRange: DEFAULT_YEAR_RANGE,
+  severities: { ...DEFAULT_SEVERITY_FILTER },
 };
 
 export function Dashboard() {
@@ -86,6 +90,8 @@ export function Dashboard() {
           showChildZones={filters.showChildZones}
           showElderlyZones={filters.showElderlyZones}
           showBikeRoads={filters.showBikeRoads}
+          bikeAccidentYearRange={filters.yearRange}
+          visibleSeverities={filters.severities}
         />
       </div>
 

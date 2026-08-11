@@ -15,7 +15,13 @@ import type { CrimeCctvStat } from "@/lib/types";
 import { gapFill } from "@/lib/color";
 
 /** 자전거도로 길이 vs 사고 건수 — 점 크기·색은 bikeScore */
-export function BikeInfraScatterChart({ stats }: { stats: CrimeCctvStat[] }) {
+export function BikeInfraScatterChart({
+  stats,
+  highlightSgg,
+}: {
+  stats: CrimeCctvStat[];
+  highlightSgg?: string;
+}) {
   const data = stats.map((d) => ({
     sgg: d.sgg.replace(/구$/, ""),
     full: d.sgg,
@@ -74,7 +80,12 @@ export function BikeInfraScatterChart({ stats }: { stats: CrimeCctvStat[] }) {
           />
           <Scatter data={data} isAnimationActive={false}>
             {data.map((d) => (
-              <Cell key={d.full} fill={gapFill(d.score)} />
+              <Cell
+                key={d.full}
+                fill={gapFill(d.score)}
+                stroke={d.full === highlightSgg ? "#111827" : "none"}
+                strokeWidth={d.full === highlightSgg ? 2 : 0}
+              />
             ))}
           </Scatter>
         </ScatterChart>

@@ -5,12 +5,13 @@ import MapGL, { NavigationControl, type MapLayerMouseEvent, type MapRef } from "
 import "maplibre-gl/dist/maplibre-gl.css";
 import { setWorkerUrl } from "maplibre-gl";
 import type { CrimeCctvStat } from "@/lib/types";
-import { ACCIDENT_FILTER_KEY_BY_TYPE, ACCIDENT_ICON_BY_TYPE, EMPTY_FC, MAP_STYLE, SEOUL_CENTER, ensureAccidentIcons } from "@/lib/mapConstants";
+import { ACCIDENT_FILTER_KEY_BY_TYPE, ACCIDENT_ICON_BY_TYPE, BIKE_ACCIDENT_ICON_BY_SEVERITY, EMPTY_FC, MAP_STYLE, SEOUL_CENTER, ensureAccidentIcons } from "@/lib/mapConstants";
 import { gapFill } from "@/lib/color";
 import { useMapData } from "./useMapData";
-import { MapHoverPopup, useMapHover } from "./MapHoverPopup";
-import { AccidentLayer, BikeRoadLayer, DistrictLayer, ZoneLayer } from "./MapLayers";
+import { AccidentDetailDialog, MapHoverPopup, useMapHover } from "./MapHoverPopup";
+import { AccidentLayer, BikeAccidentClusterLayer, BikeRoadLayer, DistrictLayer, ZoneLayer } from "./MapLayers";
 import { ColorModeTabs, DistrictInspectorCard, MapLegend, type ColorMode } from "./MapInspectorPanel";
+import { DEFAULT_SEVERITY_FILTER, type SeverityFilter } from "@/components/sidebar/FilterSidebar";
 
 if (typeof window !== "undefined") {
   setWorkerUrl("/maplibre-gl-worker.mjs");
@@ -24,6 +25,8 @@ export function MapView({
   showChildZones = false,
   showElderlyZones = false,
   showBikeRoads = false,
+  bikeAccidentYearRange = [2020, 2024],
+  visibleSeverities = DEFAULT_SEVERITY_FILTER,
 }: {
   detailOpen?: boolean;
   /** 위험도 점수 높은 구부터 N개만 색칠 (0=없음) */
@@ -38,12 +41,24 @@ export function MapView({
   showElderlyZones?: boolean;
   /** 자전거전용도로 표시 여부 */
   showBikeRoads?: boolean;
+  /** 자전거 사고 핀(acdntYear)에 적용되는 연도 범위 [min, max] 포함 */
+  bikeAccidentYearRange?: [number, number];
+  /** true면 자전거 사망사고만 지도에 표시 */
+  /** 자전거 사고 핀(severity)에 적용되는 피해정도 필터. false인 값은 지도에서 숨김 */
+  visibleSeverities?: SeverityFilter;
 }) {
   const mapRef = useRef<MapRef | null>(null);
   const { districtGeo, accidentGeo, childZoneGeo, elderlyZoneGeo, bikeRoadGeo, crimeStats } =
     useMapData();
-  const { hover, popupLockRef, onMouseMove: hoverOnMouseMove, onMouseLeave: hoverOnMouseLeave } =
-    useMapHover();
+  const {
+    hover,
+    popupLockRef,
+    onMouseMove: hoverOnMouseMove,
+    onMouseLeave: hoverOnMouseLeave,
+    detailAccident,
+    openDetail,
+    closeDetail,
+  } = useMapHover();
 
   const [cursor, setCursor] = useState("grab");
   const [iconsReady, setIconsReady] = useState(false);
@@ -77,18 +92,53 @@ export function MapView({
         const key = ACCIDENT_FILTER_KEY_BY_TYPE[f.properties?.accidentType as string] ?? "bike";
         return visibleAccidentTypes[key];
       })
+      .filter((f) => {
+        const year = f.properties?.acdntYear as number | undefined;
+        if (year == null) return true;
+        return year >= bikeAccidentYearRange[0] && year <= bikeAccidentYearRange[1];
+      })
+      .filter(
+        (f) =>
+          f.properties?.accidentType !== "자전거" ||
+          visibleSeverities[f.properties?.severity as keyof SeverityFilter] !== false
+      )
       .map((f) => ({
         ...f,
         properties: {
           ...f.properties,
-          icon: ACCIDENT_ICON_BY_TYPE[f.properties?.accidentType as string] ?? "pin-accident-bike",
+          icon:
+            f.properties?.accidentType === "자전거"
+              ? (BIKE_ACCIDENT_ICON_BY_SEVERITY[f.properties?.severity as string] ??
+                "pin-accident-bike")
+              : (ACCIDENT_ICON_BY_TYPE[f.properties?.accidentType as string] ?? "pin-accident-bike"),
         },
       }));
     return { ...accidentGeo, features };
-  }, [accidentGeo, focusSgg, visibleAccidentTypes]);
+  }, [accidentGeo, focusSgg, visibleAccidentTypes, bikeAccidentYearRange, visibleSeverities]);
+
+  // 자전거 사고는 건수가 많아 클러스터 레이어로, 나머지(어린이/노인)는 개별 핀 레이어로 분리
+  const bikeAccidentGeo = useMemo(() => {
+    if (!accidentGeoFiltered) return null;
+    return {
+      ...accidentGeoFiltered,
+      features: accidentGeoFiltered.features.filter(
+        (f) => (f.properties as { accidentType?: string })?.accidentType === "자전거"
+      ),
+    };
+  }, [accidentGeoFiltered]);
+
+  const otherAccidentGeo = useMemo(() => {
+    if (!accidentGeoFiltered) return null;
+    return {
+      ...accidentGeoFiltered,
+      features: accidentGeoFiltered.features.filter(
+        (f) => (f.properties as { accidentType?: string })?.accidentType !== "자전거"
+      ),
+    };
+  }, [accidentGeoFiltered]);
 
   const interactiveLayerIds = useMemo(() => {
-    const ids = ["districts-fill", "accident-points"];
+    const ids = ["districts-fill", "accident-points", "bike-cluster-circles", "bike-unclustered-point"];
     if (showChildZones) ids.push("child-zone-fill");
     if (showElderlyZones) ids.push("elderly-zone-fill");
     if (showBikeRoads) ids.push("bike-road-line");
@@ -184,8 +234,24 @@ export function MapView({
     setCursor(result === "pointer" || result === "district" ? "pointer" : "grab");
   };
 
-  const onClick = (e: MapLayerMouseEvent) => {
+  const onClick = async (e: MapLayerMouseEvent) => {
     if (detailOpen) return;
+
+    const cluster = e.features?.find((x) => x.layer.id === "bike-cluster-circles");
+    if (cluster) {
+      const map = mapRef.current?.getMap();
+      const clusterId = cluster.properties?.cluster_id as number | undefined;
+      const source = map?.getSource("bike-accidents") as
+        | { getClusterExpansionZoom: (id: number) => Promise<number> }
+        | undefined;
+      if (map && source && clusterId != null) {
+        const zoom = await source.getClusterExpansionZoom(clusterId);
+        const [lon, lat] = (cluster.geometry as GeoJSON.Point).coordinates;
+        map.easeTo({ center: [lon, lat], zoom, duration: 500 });
+      }
+      return;
+    }
+
     const district = e.features?.find((x) => x.layer.id === "districts-fill");
     const name = district?.properties?.name as string | undefined;
     if (!name) return;
@@ -252,17 +318,31 @@ export function MapView({
           />
         )}
 
-        {accidentGeoFiltered && iconsReady && (
+        {bikeAccidentGeo && iconsReady && (
+          <BikeAccidentClusterLayer
+            data={bikeAccidentGeo}
+            visible={bikeAccidentGeo.features.length > 0}
+          />
+        )}
+
+        {otherAccidentGeo && iconsReady && (
           <AccidentLayer
-            data={accidentGeoFiltered}
-            visible={accidentGeoFiltered.features.length > 0}
+            data={otherAccidentGeo}
+            visible={otherAccidentGeo.features.length > 0}
           />
         )}
 
         {hover && (
-          <MapHoverPopup hover={hover} popupLockRef={popupLockRef} onClose={hoverOnMouseLeave} />
+          <MapHoverPopup
+            hover={hover}
+            popupLockRef={popupLockRef}
+            onClose={hoverOnMouseLeave}
+            onOpenDetail={openDetail}
+          />
         )}
       </MapGL>
+
+      <AccidentDetailDialog detailAccident={detailAccident} onClose={closeDetail} />
 
       <div className="pointer-events-auto absolute bottom-4 left-4 flex max-w-[280px] flex-col gap-1.5 rounded-xl border bg-background/90 p-3 text-xs shadow-lg backdrop-blur-md">
         <ColorModeTabs mode={colorMode} onChange={setColorMode} />

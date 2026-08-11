@@ -148,10 +148,6 @@ def build_zone_polygons(
             failed += 1
             continue
 
-        cctv_count = row.get("CCTV설치대수")
-        if pd.isna(cctv_count):
-            cctv_count = 0
-
         features.append(
             {
                 "type": "Feature",
@@ -159,8 +155,6 @@ def build_zone_polygons(
                     "sgg": row["자치구"],
                     "name": row["시설명"],
                     "facilityType": str(row["시설종류"]),
-                    "cctv": 1 if row.get("CCTV설치여부") == "Y" else 0,
-                    "cctvCount": int(cctv_count),
                     "lon": float(row["경도"]),
                     "lat": float(row["위도"]),
                     "roadWidthM": float(row.get("보호구역도로폭") or DEFAULT_ROAD_WIDTH_M),

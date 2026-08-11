@@ -5,6 +5,9 @@ export const CHART = {
   serious: "#d97706",
   accent: "#0f766e",
   muted: "#94a3b8",
+  /** 전용도로 위/밖 대비용 */
+  bikeOn: "#0f766e",
+  bikeOff: "#ea580c",
 } as const;
 
 export function ChartTooltipShell({

@@ -253,11 +253,11 @@ export function HomeDashboardClient({
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card className="rounded-2xl border shadow-none">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium">상대차종별 치사율</CardTitle>
-            <CardDescription>{scope} · 화물·승합·건설기계 비중을 함께 보세요</CardDescription>
+            <CardTitle className="text-base font-medium">전용도로 위 vs 밖</CardTitle>
+            <CardDescription>{scope} · 전용도로 50m 인접 기준</CardDescription>
           </CardHeader>
           <CardContent>
-            <OpponentFatalityChart key={`${chartKey}-opp`} data={opponents} minN={opponentMin} />
+            <BikeRoadCompareChart key={`${chartKey}-bike`} data={bikeRoadCompare} />
           </CardContent>
         </Card>
         <Card className="rounded-2xl border shadow-none">
@@ -326,11 +326,11 @@ export function HomeDashboardClient({
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card className="rounded-2xl border shadow-none">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium">전용도로 위 vs 밖</CardTitle>
-            <CardDescription>{scope} · 전용도로 50m 인접 기준</CardDescription>
+            <CardTitle className="text-base font-medium">상대차종별 치사율</CardTitle>
+            <CardDescription>{scope} · 화물·승합·건설기계 비중을 함께 보세요</CardDescription>
           </CardHeader>
           <CardContent>
-            <BikeRoadCompareChart key={`${chartKey}-bike`} data={bikeRoadCompare} />
+            <OpponentFatalityChart key={`${chartKey}-opp`} data={opponents} minN={opponentMin} />
           </CardContent>
         </Card>
         <Card className="rounded-2xl border shadow-none">

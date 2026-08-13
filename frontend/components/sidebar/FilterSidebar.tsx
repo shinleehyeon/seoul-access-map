@@ -79,9 +79,9 @@ const YEAR_OPTIONS = Array.from(
 
 export const DEFAULT_SEVERITY_FILTER: SeverityFilter = {
   사망사고: true,
-  중상사고: true,
-  경상사고: true,
-  부상신고사고: true,
+  중상사고: false,
+  경상사고: false,
+  부상신고사고: false,
 };
 
 const SEVERITY_OPTIONS: { key: SeverityKey; label: string }[] = [

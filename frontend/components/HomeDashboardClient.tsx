@@ -174,8 +174,8 @@ function ChartCardHeader({
 type KpiTone = "onTrack" | "atRisk" | "stable" | "review";
 
 const KPI_TONE: Record<KpiTone, LucideIcon> = {
-  onTrack: TrendingUp,
-  atRisk: TrendingDown,
+  onTrack: TrendingDown,
+  atRisk: TrendingUp,
   stable: Minus,
   review: ShieldAlert,
 };
@@ -188,14 +188,6 @@ function KpiBadge({ tone, text }: { tone: KpiTone; text: string }) {
       <span className="truncate">{text}</span>
     </span>
   );
-}
-
-/** 사망 점유 ÷ 사고 비중 — "사고 11.9% · 3.0배" */
-function deathVsAccidentBadge(deathShare: number, accidentShare: number) {
-  if (accidentShare <= 0) return `사고 비중 ${accidentShare}%`;
-  const ratio = deathShare / accidentShare;
-  const ratioText = ratio >= 10 ? `${Math.round(ratio)}배` : `${ratio.toFixed(1)}배`;
-  return `사고 ${accidentShare}% · ${ratioText}`;
 }
 
 function Kpi({
@@ -330,6 +322,15 @@ export function HomeDashboardClient({
   const bikeOff = bikeRoadCompare.find((d) => d.key.includes("밖"));
   const bikeTotal = (bikeOn?.n ?? 0) + (bikeOff?.n ?? 0) || 1;
   const bikeOffShare = bikeOff ? (bikeOff.n / bikeTotal) * 100 : 0;
+  const bikeOffFatalityRatio =
+    bikeOn && bikeOff && bikeOn.fatalityPer1000 > 0
+      ? bikeOff.fatalityPer1000 / bikeOn.fatalityPer1000
+      : null;
+  const overallFatality =
+    slice.total > 0 ? (slice.deaths / slice.total) * 1000 : 0;
+  const dawnFatality = headline.dawnFatalityPer1000;
+  const dawnVsOverall =
+    overallFatality > 0 ? dawnFatality / overallFatality : null;
   const violationNote = isAll && fullPeriod ? "표본 n≥50" : "표본 n≥5";
   const chartKey = `${periodLabel}-${scope}-${slice.total}`;
   const blackspots = resolvePeriodBlackspots(insights, period, sgg);
@@ -374,31 +375,41 @@ export function HomeDashboardClient({
           accent={KPI_ACCENTS[1]}
         />
         <Kpi
-          label="대형차 사망 점유"
+          label="밖 치사율 (위 대비)"
           tone={
-            headline.heavyVehicleDeathShare > headline.heavyVehicleAccidentShare * 2
+            bikeOffFatalityRatio != null && bikeOffFatalityRatio >= 2
               ? "atRisk"
-              : "stable"
+              : bikeOffFatalityRatio != null && bikeOffFatalityRatio >= 1.3
+                ? "review"
+                : "stable"
           }
-          badge={deathVsAccidentBadge(
-            headline.heavyVehicleDeathShare,
-            headline.heavyVehicleAccidentShare
-          )}
-          primary={`${headline.heavyVehicleDeathShare}%`}
+          badge={
+            bikeOn && bikeOff
+              ? `위 ${bikeOn.fatalityPer1000} · 밖 ${bikeOff.fatalityPer1000}`
+              : "비교 불가"
+          }
+          primary={
+            bikeOffFatalityRatio != null
+              ? `${bikeOffFatalityRatio.toFixed(1)}배`
+              : "—"
+          }
           accent={KPI_ACCENTS[2]}
         />
         <Kpi
-          label="65세+ 사망 점유"
+          label="새벽 치사율 (05–07)"
           tone={
-            headline.elderlyDeathShare > headline.elderlyAccidentShare
+            dawnVsOverall != null && dawnVsOverall >= 2
               ? "atRisk"
-              : "onTrack"
+              : dawnVsOverall != null && dawnVsOverall >= 1.3
+                ? "review"
+                : "stable"
           }
-          badge={deathVsAccidentBadge(
-            headline.elderlyDeathShare,
-            headline.elderlyAccidentShare
-          )}
-          primary={`${headline.elderlyDeathShare}%`}
+          badge={
+            dawnVsOverall != null
+              ? `전체 ${overallFatality.toFixed(1)} · ${dawnVsOverall.toFixed(1)}배`
+              : `사고 ${headline.dawnAccidents}건`
+          }
+          primary={`${dawnFatality.toFixed(1)}/천`}
           accent={KPI_ACCENTS[3]}
         />
       </div>

@@ -28,7 +28,7 @@ const PAGE_SIZE = 5;
 
 type RiskLevel = "high" | "mid" | "low";
 
-type AggregatedBlackspot = {
+export type AggregatedBlackspot = {
   road: string;
   sggs: string[];
   n: number;
@@ -55,7 +55,7 @@ const RISK_CLASS: Record<RiskLevel, string> = {
   low: "border-transparent bg-[#4ade80]/20 text-[#15803d]",
 };
 
-function aggregateByRoad(blackspots: BikeBlackspotRow[]): AggregatedBlackspot[] {
+export function aggregateByRoad(blackspots: BikeBlackspotRow[]): AggregatedBlackspot[] {
   const map = new Map<
     string,
     { sggs: { sgg: string; n: number }[]; n: number; deaths: number; severeWeighted: number }

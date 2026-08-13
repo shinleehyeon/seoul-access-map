@@ -38,7 +38,10 @@ import {
   MonthVolumeChart,
 } from "@/components/insights/TimeSeasonCharts";
 import { DayHourHeatmap } from "@/components/insights/DayHourHeatmap";
-import { BlackspotRankingTable } from "@/components/insights/BlackspotRankingTable";
+import {
+  BlackspotRankingTable,
+  aggregateByRoad,
+} from "@/components/insights/BlackspotRankingTable";
 import { YearCalendarPicker } from "@/components/insights/YearCalendarPicker";
 import {
   formatPeriodLabel,
@@ -307,7 +310,6 @@ export function HomeDashboardClient({
   const scope = isAll ? "서울 전체" : sgg;
   const periodLabel = formatPeriodLabel(period, yearList);
   const {
-    headline,
     roadTypes,
     ages,
     violations,
@@ -326,14 +328,10 @@ export function HomeDashboardClient({
     bikeOn && bikeOff && bikeOn.fatalityPer1000 > 0
       ? bikeOff.fatalityPer1000 / bikeOn.fatalityPer1000
       : null;
-  const overallFatality =
-    slice.total > 0 ? (slice.deaths / slice.total) * 1000 : 0;
-  const dawnFatality = headline.dawnFatalityPer1000;
-  const dawnVsOverall =
-    overallFatality > 0 ? dawnFatality / overallFatality : null;
   const violationNote = isAll && fullPeriod ? "표본 n≥50" : "표본 n≥5";
   const chartKey = `${periodLabel}-${scope}-${slice.total}`;
   const blackspots = resolvePeriodBlackspots(insights, period, sgg);
+  const topBlackspot = aggregateByRoad(blackspots)[0];
 
   return (
     <div className="flex h-full flex-col gap-5 overflow-y-auto p-4 md:p-6">
@@ -396,20 +394,24 @@ export function HomeDashboardClient({
           accent={KPI_ACCENTS[2]}
         />
         <Kpi
-          label="새벽 치사율 (05–07)"
+          label="블랙스팟 1위"
           tone={
-            dawnVsOverall != null && dawnVsOverall >= 2
+            topBlackspot &&
+            (topBlackspot.deaths > 0 ||
+              topBlackspot.fatalityPer1000 >= 15 ||
+              topBlackspot.seriousRate >= 45)
               ? "atRisk"
-              : dawnVsOverall != null && dawnVsOverall >= 1.3
+              : topBlackspot &&
+                  (topBlackspot.fatalityPer1000 >= 5 || topBlackspot.seriousRate >= 35)
                 ? "review"
                 : "stable"
           }
           badge={
-            dawnVsOverall != null
-              ? `전체 ${overallFatality.toFixed(1)} · ${dawnVsOverall.toFixed(1)}배`
-              : `사고 ${headline.dawnAccidents}건`
+            topBlackspot
+              ? `${topBlackspot.road} · 심각률 ${topBlackspot.seriousRate.toFixed(0)}%`
+              : "데이터 없음"
           }
-          primary={`${dawnFatality.toFixed(1)}/천`}
+          primary={topBlackspot ? `${topBlackspot.n}건` : "—"}
           accent={KPI_ACCENTS[3]}
         />
       </div>

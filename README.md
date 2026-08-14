@@ -11,6 +11,7 @@
 <p>
   <img src="https://img.shields.io/badge/Next.js-16.3.0-black?logo=next.js" alt="Next.js" />
   <img src="https://img.shields.io/badge/TypeScript-blue?logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/shadcn%2Fui-black?logo=shadcnui&logoColor=white" alt="shadcn/ui" />
   <img src="https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/OpenRouter-Gemini_3_Flash-6E56CF" alt="OpenRouter" />
   <img src="https://img.shields.io/badge/data-TAAS%20%C2%B7%20OSM-2E8B57" alt="Data" />
@@ -34,34 +35,9 @@
 
 | | |
 |---|---|
-| 📊 **메인 대시보드** | KPI · 도로형태 · 전용도로 위/밖 · 연령대 · 시간대 · 반복사고 지점(블랙스팟) 랭킹 |
-| 🗺️ **지도** | 필터 기반으로 사고 핀 · 전용도로 · 구별 지표(치사율 · 심각사고율 등)를 지도 위에 시각화 |
-| 🤖 **AI 인사이트** | 대시보드 · 지도에서 파악한 패턴을 자연어로 질문하면 데이터 근거의 개입 방향을 제안 |
-
-## 기술 스택
-
-<table>
-<tr>
-<td valign="top" width="50%">
-
-**Frontend**
-- Next.js 16 (App Router, Turbopack)
-- TypeScript
-- Tailwind CSS
-- Recharts
-
-</td>
-<td valign="top" width="50%">
-
-**Data / Backend**
-- Python (pandas, geopandas, shapely)
-- 한국도로교통공단 TAAS
-- OpenStreetMap (자전거 전용도로)
-- OpenRouter · Gemini 3 Flash (AI 인사이트)
-
-</td>
-</tr>
-</table>
+| **메인 대시보드** | KPI · 도로형태 · 전용도로 위/밖 · 연령대 · 시간대 · 반복사고 지점(블랙스팟) 랭킹 |
+| **지도** | 필터 기반으로 사고 핀 · 전용도로 · 구별 지표(치사율 · 심각사고율 등)를 지도 위에 시각화 |
+| **AI 인사이트** | 대시보드 · 지도에서 파악한 패턴을 자연어로 질문하면 데이터 근거의 개입 방향을 제안 |
 
 ## 데이터 파이프라인
 
@@ -86,14 +62,6 @@ npm install
 npm run dev
 ```
 
-데이터를 새로 생성하려면 (Python 3.13, `SEOUL_API_KEY` 필요):
-
-```bash
-python -m venv venv && source venv/bin/activate
-pip install -r backend/requirements.txt
-python backend/build_bike_accident_insights.py
-```
-
 ## 프로젝트 구조
 
 ```
@@ -107,9 +75,3 @@ seoul-access-map/
 ## 발표자료
 
 [서울시 자전거 인프라 진단을 위한 사고 데이터 시각화 발표자료.pdf](./docs/서울시%20자전거%20인프라%20진단을%20위한%20사고%20데이터%20시각화%20발표자료.pdf)
-
----
-
-<div align="center">
-<sub>1팀 · 신이현</sub>
-</div>
